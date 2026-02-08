@@ -1,0 +1,49 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Produto {
+  id           Int            @id @default(autoincrement())
+  nome         String
+  valor        Float
+  estoque      Int
+  criadoEm     DateTime       @default(now())
+  codigos      CodigoBarras[]
+  itensVenda   ItemVenda[]
+}
+
+model CodigoBarras {
+  id        Int     @id @default(autoincrement())
+  codigo    String  @unique
+  produtoId Int
+  produto   Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+}
+
+
+model Venda {
+  id        Int         @id @default(autoincrement())
+  total     Float
+  dataVenda DateTime    @default(now())
+  itens     ItemVenda[]
+}
+
+model ItemVenda {
+  id         Int     @id @default(autoincrement())
+  vendaId    Int
+  produtoId  Int
+  quantidade Int
+  subtotal   Float
+  venda      Venda   @relation(fields: [vendaId], references: [id])
+  produto    Produto @relation(fields: [produtoId], references: [id])
+}
+
+model Configuracao {
+  id          Int    @id @default(1)
+  nomeMercado String @default("Panda Market")
+  cnpj        String @default("00.000.000/0001-00")
+}
