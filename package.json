@@ -1,0 +1,10 @@
+{
+  "name": "pj-caixa-panda-root",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "cd backend && npm install && npx prisma generate && npx prisma db push && npm run build && npm start"
+  }
+}
