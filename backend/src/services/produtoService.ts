@@ -33,9 +33,9 @@ export const produtoService = {
     return prisma.produto.update({
       where: { id },
       data: {
-        nome: dados.nome,
-        valor: dados.valor,
-        estoque: dados.estoque,
+        nome: dados.nome ?? undefined,
+        valor: dados.valor ?? undefined,
+        estoque: dados.estoque ?? undefined,
         codigos: dados.codigos ? {
           deleteMany: {}, // Remove códigos antigos
           create: dados.codigos.map(c => ({ codigo: c }))
