@@ -12,9 +12,11 @@ export const listarProdutos = async (req: Request, res: Response) => {
 
 export const cadastrarProduto = async (req: Request, res: Response) => {
   try {
+    console.log('📦 Tentando cadastrar produto:', req.body);
     const novo = await produtoService.cadastrar(req.body);
     res.status(201).json(novo);
   } catch (err: any) {
+    console.error('❌ Erro no cadastro de produto:', err);
     res.status(400).json({ erro: err.message });
   }
 };
