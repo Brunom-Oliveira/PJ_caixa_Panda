@@ -177,6 +177,14 @@ function App() {
   const handleGenerateReportPDF = async () => {
     if (!reportRef.current) return;
     setLoading(true);
+    const originalExpanded = expandedVenda;
+    
+    // Forçar expansão de todos os itens para o PDF
+    setExpandedVenda(-1);
+    
+    // Pequeno delay para garantir renderização do React
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     try {
       const element = reportRef.current;
       const filteredProductName = reportProductId 
@@ -209,13 +217,25 @@ function App() {
         node.style.borderColor = '#dddddd';
         if (node.classList.contains('history-item')) {
            node.style.backgroundColor = '#f9f9f9';
+           // Remover limite de altura ou overflow se houver
+           node.style.height = 'auto';
+           node.style.maxHeight = 'none';
         }
       });
+      
+      // Remover container de scroll para o PDF mostrar tudo
+      const listContainer = clone.querySelector('.report-list-container') as HTMLElement;
+      if (listContainer) {
+          listContainer.style.maxHeight = 'none';
+          listContainer.style.overflow = 'visible';
+      }
 
       await html2pdf().set(opt).from(clone).save();
     } catch {
       setError('Erro ao gerar PDF do extrato');
     } finally {
+      // Restaurar estado original
+      setExpandedVenda(originalExpanded);
       setLoading(false);
     }
   };
@@ -787,7 +807,7 @@ function App() {
                                         </div>
                                     </div>
                                     
-                                    {expandedVenda === venda.id && (
+                                    {(expandedVenda === venda.id || expandedVenda === -1) && (
                                         <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', animation: 'slideUp 0.3s ease' }}>
                                             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 'bold' }}>
                                                 <div>PRODUTO</div>
