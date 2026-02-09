@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import React, { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { 
     fetchProdutoByCodigo, 
     createVenda, 
@@ -9,9 +10,13 @@ import {
     atualizarProduto,
     excluirProduto,
     fetchConfig,
-    updateConfig
+    updateConfig,
+    fetchClientes,
+    cadastrarClienteApi,
+    atualizarClienteApi,
+    excluirClienteApi
 } from './api';
-import type { ItemVenda, Venda, Produto, Configuracao } from './types';
+import type { ItemVenda, Venda, Produto, Configuracao, Cliente } from './types';
 
 // Declaração para o html2pdf
 declare var html2pdf: any;
@@ -26,7 +31,9 @@ function App() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const [reportDates, setReportDates] = useState({ inicio: new Date().toISOString().split('T')[0], fim: new Date().toISOString().split('T')[0] });
+  const [reportProductId, setReportProductId] = useState<number | null>(null);
   const [expandedVenda, setExpandedVenda] = useState<number | null>(null);
   
   const [allProducts, setAllProducts] = useState<Produto[]>([]);
@@ -35,12 +42,23 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+  const reportRef = useRef<HTMLDivElement>(null); // Adicionado para o PDF do relatório
 
-  // Novo estado para formulário de produto
-  const [newProd, setNewProd] = useState({ nome: '', codigos: '', valor: '', estoque: '' });
+  // Estados para Clientes
+  const [showClientesModal, setShowClientesModal] = useState(false);
+  const [showAddClienteModal, setShowAddClienteModal] = useState(false);
+  const [allClientes, setAllClientes] = useState<Cliente[]>([]);
+  const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
+  const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
+  const [newCliente, setNewCliente] = useState({ nome: '', whatsapp: '', email: '' });
+  const [clienteSearchTerm, setClienteSearchTerm] = useState('');
+
+  // Estados para Produtos
   const [editingProduct, setEditingProduct] = useState<Produto | null>(null);
+  const [newProd, setNewProd] = useState({ nome: '', codigos: '', valor: '', estoque: '' });
+
+  // Estados para Configurações
   const [editConfig, setEditConfig] = useState({ nomeMercado: '', cnpj: '' });
-  const reportRef = useRef<HTMLDivElement>(null);
 
   const total = items.reduce((acc, item) => acc + item.subtotal, 0);
 
@@ -51,10 +69,51 @@ function App() {
 
   useEffect(() => {
     // Focar no input sempre que o recibo ou modal forem fechados
-    if (!receipt && !loading && !showSearchModal && !showReportModal && !showAddProductModal && !showConfigModal) {
+    if (!receipt && !loading && !showSearchModal && !showReportModal && !showAddProductModal && !showConfigModal && !showClientesModal && !showAddClienteModal && !showScanner) {
       inputRef.current?.focus();
     }
-  }, [receipt, loading, showSearchModal, showReportModal, showAddProductModal, showConfigModal]);
+  }, [receipt, loading, showSearchModal, showReportModal, showAddProductModal, showConfigModal, showClientesModal, showAddClienteModal, showScanner]);
+
+  // Efeito para o Scanner da Câmera
+  useEffect(() => {
+    if (showScanner) {
+      const scanner = new Html5QrcodeScanner("reader", { 
+        fps: 10, 
+        qrbox: { width: 250, height: 150 },
+        rememberLastUsedCamera: true,
+        supportedScanTypes: [0] // 0 = Camera
+      }, false);
+
+      scanner.render((decodedText) => {
+        handleScanFromCamera(decodedText);
+        scanner.clear();
+        setShowScanner(false);
+      }, () => {
+        // Ignorar erros de scan frequentes (não leu nada)
+      });
+
+      return () => {
+        scanner.clear().catch(err => console.error("Erro ao limpar scanner", err));
+      };
+    }
+  }, [showScanner]);
+
+  const handleScanFromCamera = async (code: string) => {
+    setLoading(true);
+    try {
+      const produto = await fetchProdutoByCodigo(code);
+      if (produto) {
+        addProductFromList(produto);
+      } else {
+        setError('Produto não encontrado: ' + code);
+        setTimeout(() => setError(null), 3000);
+      }
+    } catch (err) {
+      setError('Erro ao buscar produto');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const openSearchModal = async () => {
     setLoading(true);
@@ -73,7 +132,9 @@ function App() {
   const openReportModal = async () => {
     setLoading(true);
     try {
-      const history = await fetchVendas(reportDates.inicio, reportDates.fim);
+      const prods = await fetchProdutos();
+      setAllProducts(prods);
+      const history = await fetchVendas(reportDates.inicio, reportDates.fim, reportProductId || undefined);
       setVendasHistory(history);
       setShowReportModal(true);
     } catch (err) {
@@ -86,7 +147,7 @@ function App() {
   const handleFilterReport = async () => {
     setLoading(true);
     try {
-      const history = await fetchVendas(reportDates.inicio, reportDates.fim);
+      const history = await fetchVendas(reportDates.inicio, reportDates.fim, reportProductId || undefined);
       setVendasHistory(history);
     } catch (err) {
       setError('Erro ao filtrar relatório');
@@ -100,9 +161,13 @@ function App() {
     setLoading(true);
     try {
       const element = reportRef.current;
+      const filteredProductName = reportProductId 
+        ? allProducts.find(p => p.id === reportProductId)?.nome 
+        : 'Todos';
+
       const opt = {
         margin: 10,
-        filename: `extrato_vendas_${reportDates.inicio}_a_${reportDates.fim}.pdf`,
+        filename: `extrato_${filteredProductName}_${reportDates.inicio}_a_${reportDates.fim}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -113,8 +178,12 @@ function App() {
       clone.style.background = '#ffffff';
       clone.style.color = '#000000';
       clone.style.padding = '20px';
-      clone.style.width = '1000px'; // Forçar largura para renderização boa
+      clone.style.width = '1000px'; 
       
+      // Mostrar elemento pdf-only no clone
+      const pdfOnly = clone.querySelector('.pdf-only') as HTMLElement;
+      if (pdfOnly) pdfOnly.style.display = 'block';
+
       // Ajustar cores de textos internos no clone
       clone.querySelectorAll('*').forEach((el: any) => {
         el.style.color = '#000000';
@@ -132,6 +201,67 @@ function App() {
     }
   };
 
+
+  // Funções de Gestão de Clientes
+  const openClientesModal = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchClientes();
+      setAllClientes(data);
+      setShowClientesModal(true);
+      setClienteSearchTerm('');
+    } catch (err) {
+      setError('Erro ao carregar clientes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveCliente = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      if (editingCliente) {
+        await atualizarClienteApi(editingCliente.id, newCliente);
+        setError('Cliente atualizado!');
+      } else {
+        await cadastrarClienteApi(newCliente);
+        setError('Cliente cadastrado!');
+      }
+      setShowAddClienteModal(false);
+      setEditingCliente(null);
+      setNewCliente({ nome: '', whatsapp: '', email: '' });
+      setTimeout(() => setError(null), 3000);
+      openClientesModal(); // Refresh client list
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteCliente = async (id: number) => {
+    if (!window.confirm('Excluir este cliente?')) return;
+    setLoading(true);
+    try {
+      await excluirClienteApi(id);
+      setError('Cliente excluído!');
+      setTimeout(() => setError(null), 3000);
+      openClientesModal(); // Refresh client list
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEditCliente = (c: Cliente) => {
+    setEditingCliente(c);
+    setNewCliente({ nome: c.nome, whatsapp: c.whatsapp || '', email: c.email || '' });
+    setShowAddClienteModal(true);
+  };
+
+  // Funções de Gestão de Produtos
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -231,8 +361,15 @@ function App() {
 
   const handleWhatsApp = () => {
     if (!receipt) return;
-    const text = `*${config.nomeMercado} - NOTA FISCAL #${receipt.id}*\n\n` +
-      receipt.itens.map(i => `${i.quantidade}x ${i.produto?.nome} - ${formatCurrency(i.subtotal)}`).join('\n') +
+    let text = `*${config.nomeMercado} - NOTA FISCAL #${receipt.id}*\n\n`;
+    if (receipt.cliente) {
+        text += `*CLIENTE: ${receipt.cliente.nome}*\n`;
+        if (receipt.cliente.whatsapp) {
+            text += `*WHATSAPP: ${receipt.cliente.whatsapp}*\n`;
+        }
+        text += '\n';
+    }
+    text += receipt.itens.map(i => `${i.quantidade}x ${i.produto?.nome} - ${formatCurrency(i.subtotal)}`).join('\n') +
       `\n\n*TOTAL: ${formatCurrency(receipt.total)}*\n` +
       `CNPJ: ${config.cnpj}\nData: ${new Date(receipt.dataVenda).toLocaleString()}`;
     
@@ -260,6 +397,12 @@ function App() {
   const filteredProducts = allProducts.filter(p => 
     p.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
     p.codigos?.some(c => c.codigo.includes(searchTerm))
+  );
+
+  const filteredClientes = allClientes.filter(c => 
+    c.nome.toLowerCase().includes(clienteSearchTerm.toLowerCase()) ||
+    c.whatsapp?.includes(clienteSearchTerm) ||
+    c.email?.toLowerCase().includes(clienteSearchTerm.toLowerCase())
   );
 
   const handleScan = async (e: KeyboardEvent<HTMLInputElement>) => {
@@ -290,9 +433,10 @@ function App() {
     if (items.length === 0) return;
     setLoading(true);
     try {
-      const venda = await createVenda(items.map(i => ({ produtoId: i.produtoId, quantidade: i.quantidade })));
+      const venda = await createVenda(items.map(i => ({ produtoId: i.produtoId, quantidade: i.quantidade })), selectedCliente?.id);
       setReceipt(venda);
       setItems([]);
+      setSelectedCliente(null);
     } catch (err: any) {
         setError(err.message);
     } finally {
@@ -309,6 +453,7 @@ function App() {
                 <button className="btn-icon" onClick={openConfigModal} title="Configurações do Mercado">⚙️</button>
                 <button className="btn-icon" onClick={openReportModal} title="Extrato e Relatórios">📊</button>
                 <button className="btn-icon" onClick={() => setShowAddProductModal(true)} title="Cadastrar Novo Produto">➕</button>
+                <button className="btn-icon" onClick={openClientesModal} title="Gerenciar Clientes">👥</button>
                 <span className="mobile-hide" style={{ color: 'var(--text-secondary)' }}>{new Date().toLocaleDateString()}</span>
             </div>
         </div>
@@ -378,6 +523,14 @@ function App() {
 
         {/* Scan Input */}
         <div className="input-bar">
+            {/* Botão Câmera (Mobile) */}
+            <h2 
+                style={{ fontSize: '2rem', cursor: 'pointer', userSelect: 'none' }} 
+                onClick={() => setShowScanner(true)}
+                title="Escanear com a câmera"
+            >
+                📷
+            </h2>
             <h2 
                 style={{ fontSize: '2rem', cursor: 'pointer', userSelect: 'none' }} 
                 onClick={openSearchModal}
@@ -388,7 +541,7 @@ function App() {
             <input 
                 ref={inputRef}
                 className="big-input"
-                placeholder="Escaneie o código ou clique na lupa..."
+                placeholder="Escaneie o código ou use a câmera..."
                 value={barcode}
                 onChange={(e) => setBarcode(e.target.value)}
                 onKeyDown={handleScan}
@@ -465,19 +618,69 @@ function App() {
                     </div>
 
                     {/* Filtros */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.5rem', marginBottom: '2rem', background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '24px', border: '1px solid var(--border)', alignItems: 'center' }}>
-                        <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label>Data Início</label>
-                            <input type="date" value={reportDates.inicio} onChange={e => setReportDates({...reportDates, inicio: e.target.value})} />
+                    <div style={{ 
+                        display: 'flex', 
+                        flexWrap: 'wrap', 
+                        gap: '1rem', 
+                        marginBottom: '2rem', 
+                        background: 'rgba(255,255,255,0.03)', 
+                        padding: '1.5rem', 
+                        borderRadius: '24px', 
+                        border: '1px solid var(--border)',
+                        alignItems: 'flex-end'
+                    }}>
+                        <div className="form-group" style={{ marginBottom: 0, flex: '1 1 150px' }}>
+                            <label style={{ fontSize: '0.75rem', opacity: 0.7, marginBottom: '0.5rem', display: 'block' }}>DATA INÍCIO</label>
+                            <input type="date" value={reportDates.inicio} onChange={e => setReportDates({...reportDates, inicio: e.target.value})} style={{ width: '100%' }} />
                         </div>
-                        <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label>Data Fim</label>
-                            <input type="date" value={reportDates.fim} onChange={e => setReportDates({...reportDates, fim: e.target.value})} />
+                        <div className="form-group" style={{ marginBottom: 0, flex: '1 1 150px' }}>
+                            <label style={{ fontSize: '0.75rem', opacity: 0.7, marginBottom: '0.5rem', display: 'block' }}>DATA FIM</label>
+                            <input type="date" value={reportDates.fim} onChange={e => setReportDates({...reportDates, fim: e.target.value})} style={{ width: '100%' }} />
                         </div>
-                        <div style={{ display: 'flex', gap: '1rem', alignSelf: 'end' }}>
-                          <button className="success" style={{ flex: 1, padding: '1rem' }} onClick={handleFilterReport}>Filtrar</button>
-                          <button style={{ flex: 1, padding: '1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)' }} onClick={handleGenerateReportPDF}>📄 PDF</button>
+                        <div className="form-group" style={{ marginBottom: 0, flex: '2 1 200px' }}>
+                            <label style={{ fontSize: '0.75rem', opacity: 0.7, marginBottom: '0.5rem', display: 'block' }}>FILTRAR POR PRODUTO</label>
+                            <select 
+                                value={reportProductId || ''} 
+                                onChange={e => setReportProductId(e.target.value ? Number(e.target.value) : null)}
+                                style={{ 
+                                    background: 'var(--bg-tertiary)', 
+                                    border: '1px solid var(--border)', 
+                                    borderRadius: '12px', 
+                                    padding: '0.75rem', 
+                                    color: 'white', 
+                                    width: '100%',
+                                    outline: 'none'
+                                }}
+                            >
+                                <option value="">Todos os Produtos</option>
+                                {allProducts.map(p => (
+                                    <option key={p.id} value={p.id}>{p.nome}</option>
+                                ))}
+                            </select>
                         </div>
+                        <button 
+                            className="success" 
+                            style={{ padding: '0.85rem 2rem', height: '48px', fontWeight: 'bold' }} 
+                            onClick={handleFilterReport}
+                        >
+                            FILTRAR
+                        </button>
+                        <button 
+                            className="secondary"
+                            style={{ 
+                                padding: '0.85rem 1.5rem', 
+                                height: '48px', 
+                                background: 'rgba(255,255,255,0.05)', 
+                                border: '1px solid var(--border)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                fontWeight: 'bold'
+                            }} 
+                            onClick={handleGenerateReportPDF}
+                        >
+                            <span>📄</span> PDF
+                        </button>
                     </div>
 
                     <div ref={reportRef} style={{ background: 'transparent' }}>
@@ -486,19 +689,42 @@ function App() {
                             <h1 style={{ color: '#000' }}>{config.nomeMercado}</h1>
                             <p style={{ color: '#000' }}>CNPJ: {config.cnpj}</p>
                             <h2 style={{ color: '#000', marginTop: '1rem' }}>EXTRATO DE VENDAS</h2>
+                            <p style={{ color: '#000' }}>Produto: {reportProductId ? allProducts.find(p => p.id === reportProductId)?.nome : 'Todos'}</p>
                             <p style={{ color: '#000' }}>Período: {new Date(reportDates.inicio).toLocaleDateString()} - {new Date(reportDates.fim).toLocaleDateString()}</p>
                             <hr style={{ border: '1px solid #eee', margin: '1rem 0' }} />
                         </div>
 
                         {/* Resumo */}
-                        <div style={{ display: 'flex', gap: '2rem', marginBottom: '2rem' }}>
-                            <div style={{ flex: 1, background: 'var(--accent-soft)', padding: '1.5rem', borderRadius: '20px', border: '1px solid var(--accent)' }}>
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Volume Total</span>
-                                <h2 style={{ margin: 0, color: 'var(--accent)' }}>{formatCurrency(vendasHistory.reduce((acc, v) => acc + v.total, 0))}</h2>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+                            <div style={{ 
+                                background: 'linear-gradient(135deg, var(--accent-soft) 0%, rgba(16, 185, 129, 0.05) 100%)', 
+                                padding: '1.5rem', 
+                                borderRadius: '24px', 
+                                border: '1px solid var(--accent)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '1.5rem'
+                            }}>
+                                <div style={{ fontSize: '2.5rem', opacity: 0.8 }}>💰</div>
+                                <div>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '1px' }}>Volume Total</span>
+                                    <h2 style={{ margin: 0, color: 'var(--accent)', fontSize: '2rem' }}>{formatCurrency(vendasHistory.reduce((acc, v) => acc + v.total, 0))}</h2>
+                                </div>
                             </div>
-                            <div style={{ flex: 1, background: 'rgba(255,255,255,0.03)', padding: '1.5rem', borderRadius: '20px', border: '1px solid var(--border)' }}>
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Vendas</span>
-                                <h2 style={{ margin: 0 }}>{vendasHistory.length}</h2>
+                            <div style={{ 
+                                background: 'rgba(255,255,255,0.03)', 
+                                padding: '1.5rem', 
+                                borderRadius: '24px', 
+                                border: '1px solid var(--border)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '1.5rem'
+                            }}>
+                                <div style={{ fontSize: '2.5rem', opacity: 0.8 }}>🧾</div>
+                                <div>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '1px' }}>Total de Vendas</span>
+                                    <h2 style={{ margin: 0, fontSize: '2rem' }}>{vendasHistory.length}</h2>
+                                </div>
                             </div>
                         </div>
 
@@ -539,10 +765,19 @@ function App() {
                             ))}
                         </div>
                     </div>
-                    {vendasHistory.length === 0 && (
-                            <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📅</div>
-                                Nenhuma venda encontrada para este período.
+                    {vendasHistory.length === 0 && !loading && (
+                            <div style={{ 
+                                padding: '4rem', 
+                                textAlign: 'center', 
+                                color: 'var(--text-secondary)',
+                                background: 'rgba(255,255,255,0.01)',
+                                borderRadius: '32px',
+                                border: '1px dashed var(--border)',
+                                marginTop: '1rem'
+                            }}>
+                                <div style={{ fontSize: '4rem', marginBottom: '1.5rem', filter: 'grayscale(1)' }}>🔎</div>
+                                <h3 style={{ color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Nenhuma venda encontrada</h3>
+                                <p style={{ fontSize: '0.9rem', maxWidth: '300px', margin: '0 auto' }}>Ajuste os filtros de data ou produto para visualizar outros resultados.</p>
                             </div>
                         )}
                 </div>
@@ -610,6 +845,13 @@ function App() {
                         <hr style={{ borderTop: '1px dashed #000', margin: '0.5rem 0' }} />
                         <p>CUPOM #000{receipt.id}</p>
                         <p>{new Date(receipt.dataVenda).toLocaleString()}</p>
+                        {receipt.cliente && (
+                            <div style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+                                <hr style={{ borderTop: '1px dashed #000', margin: '0.5rem 0' }} />
+                                <p>CLIENTE: {receipt.cliente.nome}</p>
+                                {receipt.cliente.whatsapp && <p>WHATSAPP: {receipt.cliente.whatsapp}</p>}
+                            </div>
+                        )}
                         <hr style={{ borderTop: '1px dashed #000', margin: '0.5rem 0' }} />
                         
                         <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
@@ -637,6 +879,97 @@ function App() {
             </div>
         )}
 
+        {/* Clientes Management Modal */}
+        {showClientesModal && (
+            <div className="modal-overlay" onClick={() => setShowClientesModal(false)}>
+                <div className="modal" style={{ maxWidth: '800px' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                        <h2>👥 Gestão de Clientes</h2>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button className="success" onClick={() => { setEditingCliente(null); setNewCliente({ nome: '', whatsapp: '', email: '' }); setShowAddClienteModal(true); }}>➕ Novo Cliente</button>
+                            <button className="secondary-close" onClick={() => setShowClientesModal(false)}>X</button>
+                        </div>
+                    </div>
+
+                    <input 
+                        className="big-input"
+                        placeholder="Pesquisar cliente por nome ou celular..."
+                        value={clienteSearchTerm}
+                        onChange={e => setClienteSearchTerm(e.target.value)}
+                        style={{ fontSize: '1rem', padding: '0.75rem', marginBottom: '1rem' }}
+                    />
+
+                    <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '24px' }}>
+                        {filteredClientes.map(cliente => (
+                            <div key={cliente.id} className="table-row animate-item" style={{ gridTemplateColumns: '1fr 1fr 1fr auto' }}>
+                                <div style={{ fontWeight: 'bold', textAlign: 'left' }}>{cliente.nome}</div>
+                                <div style={{ color: 'var(--text-secondary)' }}>{cliente.whatsapp || '-'}</div>
+                                <div style={{ color: 'var(--text-secondary)' }}>{cliente.email || '-'}</div>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button className="success" style={{ padding: '0.4rem 0.8rem' }} onClick={() => { setSelectedCliente(cliente); setShowClientesModal(false); }}>Selecionar</button>
+                                    <button className="secondary" style={{ padding: '0.4rem', fontSize: '1.2rem' }} onClick={() => startEditCliente(cliente)}>✏️</button>
+                                    <button className="danger" style={{ padding: '0.4rem', fontSize: '1.2rem' }} onClick={() => handleDeleteCliente(cliente.id)}>🗑️</button>
+                                </div>
+                            </div>
+                        ))}
+                        {filteredClientes.length === 0 && (
+                            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Nenhum cliente encontrado.</div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* Add/Edit Cliente Modal */}
+        {showAddClienteModal && (
+            <div className="modal-overlay" onClick={() => setShowAddClienteModal(false)}>
+                <div className="modal" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                        <h2>{editingCliente ? '✏️ Editar Cliente' : '➕ Cadastro de Cliente'}</h2>
+                        <button className="secondary-close" onClick={() => setShowAddClienteModal(false)}>X</button>
+                    </div>
+                    <form onSubmit={handleSaveCliente}>
+                        <div className="form-group">
+                            <label>Nome Completo</label>
+                            <input required value={newCliente.nome} onChange={e => setNewCliente({...newCliente, nome: e.target.value})} placeholder="Nome do cliente" />
+                        </div>
+                        <div className="form-group">
+                            <label>WhatsApp</label>
+                            <input value={newCliente.whatsapp} onChange={e => setNewCliente({...newCliente, whatsapp: e.target.value})} placeholder="(00) 00000-0000" />
+                        </div>
+                        <div className="form-group">
+                            <label>E-mail</label>
+                            <input type="email" value={newCliente.email} onChange={e => setNewCliente({...newCliente, email: e.target.value})} placeholder="email@exemplo.com" />
+                        </div>
+                        <button type="submit" className="success" style={{ width: '100%', padding: '1rem', marginTop: '1rem' }}>
+                            {editingCliente ? 'Salvar Alterações' : 'Cadastrar Cliente'}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        )}
+
+        {/* Camera Scanner Modal */}
+        {showScanner && (
+            <div className="modal-overlay" onClick={() => setShowScanner(false)}>
+                <div className="modal" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                        <h2>📷 Escanear Produto</h2>
+                        <button className="secondary-close" onClick={() => setShowScanner(false)}>X</button>
+                    </div>
+                    <div id="reader" style={{ width: '100%', borderRadius: '12px', overflow: 'hidden' }}></div>
+                    <p style={{ textAlign: 'center', marginTop: '1rem', color: 'var(--text-secondary)' }}>
+                        Aponte a câmera para o código de barras
+                    </p>
+                </div>
+            </div>
+        )}
+
+        <style dangerouslySetInnerHTML={{ __html: `
+            .sidebar .btn-icon { font-size: 1.5rem !important; }
+            .modal-overlay { z-index: 2000 !important; }
+        `}} />
+
         {/* Floating Error */}
         {error && (
             <div style={{ 
@@ -645,7 +978,7 @@ function App() {
                 padding: '1rem 2rem', borderRadius: '8px',
                 fontWeight: 'bold', animation: 'fadeIn 0.3s',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                zIndex: 200
+                zIndex: 9999
             }}>
                 ⚠️ {error}
             </div>

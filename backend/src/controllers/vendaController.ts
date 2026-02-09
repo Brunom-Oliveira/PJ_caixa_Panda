@@ -4,8 +4,12 @@ import { vendaService } from '../services/vendaService.js';
 
 export const listarVendas = async (req: Request, res: Response) => {
   try {
-    const { dataInicio, dataFim } = req.query;
-    const vendas = await vendaService.listar(dataInicio as string, dataFim as string);
+    const { dataInicio, dataFim, produtoId } = req.query;
+    const vendas = await vendaService.listar(
+      dataInicio as string, 
+      dataFim as string, 
+      produtoId ? Number(produtoId) : undefined
+    );
     res.json(vendas);
   } catch (err: any) {
     res.status(500).json({ erro: err.message });
@@ -14,7 +18,7 @@ export const listarVendas = async (req: Request, res: Response) => {
 
 export const cadastrarVenda = async (req: Request, res: Response) => {
   try {
-    const { itens } = req.body;
+    const { itens, clienteId } = req.body;
     if (!itens || !Array.isArray(itens) || itens.length === 0) {
       return res.status(400).json({ erro: 'Itens da venda não fornecidos.' });
     }
@@ -25,7 +29,7 @@ export const cadastrarVenda = async (req: Request, res: Response) => {
       quantidade: Number(item.quantidade)
     }));
 
-    const novaVenda = await vendaService.cadastrar(itensFormatados);
+    const novaVenda = await vendaService.cadastrar(itensFormatados, clienteId ? Number(clienteId) : undefined);
     res.status(201).json(novaVenda);
   } catch (err: any) {
     res.status(400).json({ erro: err.message });

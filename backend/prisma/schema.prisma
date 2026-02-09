@@ -29,6 +29,8 @@ model Venda {
   id        Int         @id @default(autoincrement())
   total     Float
   dataVenda DateTime    @default(now())
+  clienteId Int?
+  cliente   Cliente?    @relation(fields: [clienteId], references: [id])
   itens     ItemVenda[]
 }
 
@@ -40,6 +42,15 @@ model ItemVenda {
   subtotal   Float
   venda      Venda   @relation(fields: [vendaId], references: [id])
   produto    Produto @relation(fields: [produtoId], references: [id])
+}
+
+model Cliente {
+  id       Int      @id @default(autoincrement())
+  nome     String
+  whatsapp String?
+  email    String?
+  criadoEm DateTime @default(now())
+  vendas   Venda[]
 }
 
 model Configuracao {

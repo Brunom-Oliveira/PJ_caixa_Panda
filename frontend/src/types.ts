@@ -11,6 +11,13 @@ export interface Produto {
   codigos?: CodigoBarras[];
 }
 
+export interface Cliente {
+  id: number;
+  nome: string;
+  whatsapp?: string;
+  email?: string;
+}
+
 export interface ItemVenda {
   id?: number;
   vendaId?: number;
@@ -24,6 +31,8 @@ export interface Venda {
   id: number;
   total: number;
   dataVenda: string;
+  clienteId?: number;
+  cliente?: Cliente;
   itens: ItemVenda[];
 }
 
