@@ -57,4 +57,5 @@ model Configuracao {
   id          Int    @id @default(1)
   nomeMercado String @default("Panda Market")
   cnpj        String @default("00.000.000/0001-00")
+  endereco    String @default("")
 }

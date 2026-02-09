@@ -40,4 +40,5 @@ export interface Configuracao {
   id: number;
   nomeMercado: string;
   cnpj: string;
+  endereco: string;
 }

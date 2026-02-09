@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import React, { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { 
     fetchProdutoByCodigo, 
@@ -19,7 +19,13 @@ import {
 import type { ItemVenda, Venda, Produto, Configuracao, Cliente } from './types';
 
 // Declaração para o html2pdf
-declare var html2pdf: any;
+declare const html2pdf: () => {
+  set: (opt: unknown) => {
+    from: (el: HTMLElement) => {
+      save: () => Promise<void>;
+    };
+  };
+};
 
 function App() {
   const [items, setItems] = useState<ItemVenda[]>([]);
@@ -38,7 +44,7 @@ function App() {
   
   const [allProducts, setAllProducts] = useState<Produto[]>([]);
   const [vendasHistory, setVendasHistory] = useState<Venda[]>([]);
-  const [config, setConfig] = useState<Configuracao>({ id: 1, nomeMercado: 'Panda Market', cnpj: '00.000.000/0001-00' });
+  const [config, setConfig] = useState<Configuracao>({ id: 1, nomeMercado: 'Panda Market', cnpj: '00.000.000/0001-00', endereco: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
@@ -58,7 +64,36 @@ function App() {
   const [newProd, setNewProd] = useState({ nome: '', codigos: '', valor: '', estoque: '' });
 
   // Estados para Configurações
-  const [editConfig, setEditConfig] = useState({ nomeMercado: '', cnpj: '' });
+  const [editConfig, setEditConfig] = useState({ nomeMercado: '', cnpj: '', endereco: '' });
+
+  // Estados para Quantidade ao adicionar produto
+  const [showQtyModal, setShowQtyModal] = useState(false);
+  const [qtyProduct, setQtyProduct] = useState<Produto | null>(null);
+  const [qtyValue, setQtyValue] = useState('1');
+
+  const promptQuantidade = useCallback((produto: Produto) => {
+    console.log('📦 Prompt Quantidade called for:', produto.nome);
+    setQtyProduct(produto);
+    setQtyValue('1');
+    setShowQtyModal(true);
+  }, []);
+
+  const handleScanFromCamera = useCallback(async (code: string) => {
+    setLoading(true);
+    try {
+      const produto = await fetchProdutoByCodigo(code);
+      if (produto) {
+        promptQuantidade(produto);
+      } else {
+        setError('Produto nÃ£o encontrado: ' + code);
+        setTimeout(() => setError(null), 3000);
+      }
+    } catch {
+      setError('Erro ao buscar produto');
+    } finally {
+      setLoading(false);
+    }
+  }, [promptQuantidade]);
 
   const total = items.reduce((acc, item) => acc + item.subtotal, 0);
 
@@ -69,10 +104,10 @@ function App() {
 
   useEffect(() => {
     // Focar no input sempre que o recibo ou modal forem fechados
-    if (!receipt && !loading && !showSearchModal && !showReportModal && !showAddProductModal && !showConfigModal && !showClientesModal && !showAddClienteModal && !showScanner) {
+    if (!receipt && !loading && !showSearchModal && !showReportModal && !showAddProductModal && !showConfigModal && !showClientesModal && !showAddClienteModal && !showScanner && !showQtyModal) {
       inputRef.current?.focus();
     }
-  }, [receipt, loading, showSearchModal, showReportModal, showAddProductModal, showConfigModal, showClientesModal, showAddClienteModal, showScanner]);
+  }, [receipt, loading, showSearchModal, showReportModal, showAddProductModal, showConfigModal, showClientesModal, showAddClienteModal, showScanner, showQtyModal]);
 
   // Efeito para o Scanner da Câmera
   useEffect(() => {
@@ -96,24 +131,7 @@ function App() {
         scanner.clear().catch(err => console.error("Erro ao limpar scanner", err));
       };
     }
-  }, [showScanner]);
-
-  const handleScanFromCamera = async (code: string) => {
-    setLoading(true);
-    try {
-      const produto = await fetchProdutoByCodigo(code);
-      if (produto) {
-        addProductFromList(produto);
-      } else {
-        setError('Produto não encontrado: ' + code);
-        setTimeout(() => setError(null), 3000);
-      }
-    } catch (err) {
-      setError('Erro ao buscar produto');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [showScanner, handleScanFromCamera]);
 
   const openSearchModal = async () => {
     setLoading(true);
@@ -122,7 +140,7 @@ function App() {
       setAllProducts(prods);
       setShowSearchModal(true);
       setSearchTerm('');
-    } catch (err) {
+    } catch {
       setError('Erro ao carregar lista de produtos');
     } finally {
       setLoading(false);
@@ -137,7 +155,7 @@ function App() {
       const history = await fetchVendas(reportDates.inicio, reportDates.fim, reportProductId || undefined);
       setVendasHistory(history);
       setShowReportModal(true);
-    } catch (err) {
+    } catch {
       setError('Erro ao carregar relatório');
     } finally {
       setLoading(false);
@@ -149,7 +167,7 @@ function App() {
     try {
       const history = await fetchVendas(reportDates.inicio, reportDates.fim, reportProductId || undefined);
       setVendasHistory(history);
-    } catch (err) {
+    } catch {
       setError('Erro ao filtrar relatório');
     } finally {
       setLoading(false);
@@ -185,16 +203,17 @@ function App() {
       if (pdfOnly) pdfOnly.style.display = 'block';
 
       // Ajustar cores de textos internos no clone
-      clone.querySelectorAll('*').forEach((el: any) => {
-        el.style.color = '#000000';
-        el.style.borderColor = '#dddddd';
-        if (el.classList.contains('history-item')) {
-           el.style.backgroundColor = '#f9f9f9';
+      clone.querySelectorAll('*').forEach((el) => {
+        const node = el as HTMLElement;
+        node.style.color = '#000000';
+        node.style.borderColor = '#dddddd';
+        if (node.classList.contains('history-item')) {
+           node.style.backgroundColor = '#f9f9f9';
         }
       });
 
       await html2pdf().set(opt).from(clone).save();
-    } catch (err) {
+    } catch {
       setError('Erro ao gerar PDF do extrato');
     } finally {
       setLoading(false);
@@ -210,7 +229,7 @@ function App() {
       setAllClientes(data);
       setShowClientesModal(true);
       setClienteSearchTerm('');
-    } catch (err) {
+    } catch {
       setError('Erro ao carregar clientes');
     } finally {
       setLoading(false);
@@ -233,8 +252,8 @@ function App() {
       setNewCliente({ nome: '', whatsapp: '', email: '' });
       setTimeout(() => setError(null), 3000);
       openClientesModal(); // Refresh client list
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao salvar cliente');
     } finally {
       setLoading(false);
     }
@@ -248,8 +267,8 @@ function App() {
       setError('Cliente excluído!');
       setTimeout(() => setError(null), 3000);
       openClientesModal(); // Refresh client list
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao excluir cliente');
     } finally {
       setLoading(false);
     }
@@ -291,8 +310,8 @@ function App() {
         const prods = await fetchProdutos();
         setAllProducts(prods);
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao cadastrar produto');
     } finally {
       setLoading(false);
     }
@@ -307,8 +326,8 @@ function App() {
       setAllProducts(prods);
       setError('Produto removido');
       setTimeout(() => setError(null), 3000);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao remover produto');
     } finally {
       setLoading(false);
     }
@@ -334,7 +353,7 @@ function App() {
       setShowConfigModal(false);
       setError('Configurações salvas!');
       setTimeout(() => setError(null), 3000);
-    } catch (err) {
+    } catch {
       setError('Erro ao salvar configurações');
     } finally {
       setLoading(false);
@@ -342,7 +361,7 @@ function App() {
   };
 
   const openConfigModal = () => {
-    setEditConfig({ nomeMercado: config.nomeMercado, cnpj: config.cnpj });
+    setEditConfig({ nomeMercado: config.nomeMercado, cnpj: config.cnpj, endereco: config.endereco });
     setShowConfigModal(true);
   };
 
@@ -371,27 +390,43 @@ function App() {
     }
     text += receipt.itens.map(i => `${i.quantidade}x ${i.produto?.nome} - ${formatCurrency(i.subtotal)}`).join('\n') +
       `\n\n*TOTAL: ${formatCurrency(receipt.total)}*\n` +
-      `CNPJ: ${config.cnpj}\nData: ${new Date(receipt.dataVenda).toLocaleString()}`;
+      `CNPJ: ${config.cnpj}\n` +
+      (config.endereco ? `ENDEREÇO: ${config.endereco}\n` : '') +
+      `Data: ${new Date(receipt.dataVenda).toLocaleString()}`;
     
     const encodedText = encodeURIComponent(text);
     window.open(`https://wa.me/?text=${encodedText}`, '_blank');
   };
 
-  const addProductFromList = (produto: Produto) => {
+  const addProductFromList = (produto: Produto, quantidade = 1) => {
     setItems(prev => {
       const existingIndex = prev.findIndex(item => item.produtoId === produto.id);
       if (existingIndex >= 0) {
         return prev.map((item, idx) => {
           if (idx === existingIndex) {
-            const novaQtd = item.quantidade + 1;
+            const novaQtd = item.quantidade + quantidade;
             return { ...item, quantidade: novaQtd, subtotal: novaQtd * (item.produto?.valor || 0) };
           }
           return item;
         });
       }
-      return [...prev, { produtoId: produto.id, produto, quantidade: 1, subtotal: produto.valor }];
+      return [...prev, { produtoId: produto.id, produto, quantidade, subtotal: quantidade * produto.valor }];
     });
     setShowSearchModal(false);
+  };
+
+  const confirmQuantidade = () => {
+    if (!qtyProduct) return;
+    const qtd = parseInt(qtyValue);
+    if (!Number.isFinite(qtd) || qtd <= 0) {
+      setError('Quantidade inválida');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+    addProductFromList(qtyProduct, qtd);
+    setShowQtyModal(false);
+    setQtyProduct(null);
+    setQtyValue('1');
   };
 
   const filteredProducts = allProducts.filter(p => 
@@ -415,13 +450,13 @@ function App() {
         setBarcode(''); // Limpa o campo imediatamente para evitar disparos duplos
         
         if (produto) {
-          addProductFromList(produto);
+          promptQuantidade(produto);
         } else {
             // Beep sound here would be nice
           setError('Produto não encontrado');
           setTimeout(() => setError(null), 3000);
         }
-      } catch (err) {
+      } catch {
         setError('Erro ao buscar produto');
       } finally {
         setLoading(false);
@@ -437,8 +472,8 @@ function App() {
       setReceipt(venda);
       setItems([]);
       setSelectedCliente(null);
-    } catch (err: any) {
-        setError(err.message);
+    } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Erro ao finalizar venda');
     } finally {
         setLoading(false);
     }
@@ -567,6 +602,10 @@ function App() {
                             <label>CNPJ</label>
                             <input required value={editConfig.cnpj} onChange={e => setEditConfig({...editConfig, cnpj: e.target.value})} />
                         </div>
+                        <div className="form-group">
+                            <label>Endereço</label>
+                            <input value={editConfig.endereco} onChange={e => setEditConfig({...editConfig, endereco: e.target.value})} />
+                        </div>
                         <button type="submit" className="success" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }}>Salvar Configurações</button>
                     </form>
                 </div>
@@ -688,6 +727,9 @@ function App() {
                         <div className="pdf-only" style={{ textAlign: 'center', marginBottom: '2rem', display: 'none' }}>
                             <h1 style={{ color: '#000' }}>{config.nomeMercado}</h1>
                             <p style={{ color: '#000' }}>CNPJ: {config.cnpj}</p>
+                            {config.endereco && (
+                                <p style={{ color: '#000' }}>Endereço: {config.endereco}</p>
+                            )}
                             <h2 style={{ color: '#000', marginTop: '1rem' }}>EXTRATO DE VENDAS</h2>
                             <p style={{ color: '#000' }}>Produto: {reportProductId ? allProducts.find(p => p.id === reportProductId)?.nome : 'Todos'}</p>
                             <p style={{ color: '#000' }}>Período: {new Date(reportDates.inicio).toLocaleDateString()} - {new Date(reportDates.fim).toLocaleDateString()}</p>
@@ -809,7 +851,7 @@ function App() {
                                 className="table-row animate-item" 
                                 style={{ gridTemplateColumns: '1fr 1fr 1fr auto', cursor: 'default' }}
                             >
-                                <div style={{ textAlign: 'left', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => addProductFromList(produto)}>{produto.nome}</div>
+                            <div style={{ textAlign: 'left', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => promptQuantidade(produto)}>{produto.nome}</div>
                                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
                                     {produto.codigos?.map(c => c.codigo).join(', ')}
                                 </div>
@@ -842,6 +884,9 @@ function App() {
                     <div ref={receiptRef} style={{ background: '#fff', color: '#000', padding: '1.5rem', borderRadius: '4px', fontFamily: 'monospace' }}>
                         <h3 style={{ textAlign: 'center', color: '#000', textTransform: 'uppercase' }}>{config.nomeMercado}</h3>
                         <p style={{ textAlign: 'center', fontSize: '0.8rem' }}>CNPJ: {config.cnpj}</p>
+                        {config.endereco && (
+                            <p style={{ textAlign: 'center', fontSize: '0.75rem' }}>Endereço: {config.endereco}</p>
+                        )}
                         <hr style={{ borderTop: '1px dashed #000', margin: '0.5rem 0' }} />
                         <p>CUPOM #000{receipt.id}</p>
                         <p>{new Date(receipt.dataVenda).toLocaleString()}</p>
@@ -855,7 +900,7 @@ function App() {
                         <hr style={{ borderTop: '1px dashed #000', margin: '0.5rem 0' }} />
                         
                         <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                            {receipt.itens && receipt.itens.map((item: any, idx: number) => (
+                            {receipt.itens && receipt.itens.map((item: ItemVenda, idx: number) => (
                                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between' }}>
                                     <span>{item.quantidade}x {item.produto?.nome?.substring(0, 20)}</span>
                                     <span>{item.subtotal.toFixed(2)}</span>
@@ -961,6 +1006,38 @@ function App() {
                     <p style={{ textAlign: 'center', marginTop: '1rem', color: 'var(--text-secondary)' }}>
                         Aponte a câmera para o código de barras
                     </p>
+                </div>
+            </div>
+        )}
+
+        {/* Quantidade Modal */}
+        {showQtyModal && qtyProduct && (
+            <div className="modal-overlay" onClick={() => setShowQtyModal(false)}>
+                <div className="modal" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                        <h2>Quantidade</h2>
+                        <button className="secondary-close" onClick={() => setShowQtyModal(false)}>X</button>
+                    </div>
+                    <div style={{ marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
+                        Produto: <strong style={{ color: 'var(--text-primary)' }}>{qtyProduct.nome}</strong>
+                    </div>
+                    <input
+                        className="big-input"
+                        type="number"
+                        min="1"
+                        value={qtyValue}
+                        onChange={(e) => setQtyValue(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                confirmQuantidade();
+                            }
+                        }}
+                        autoFocus
+                    />
+                    <button className="success" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }} onClick={confirmQuantidade}>
+                        Adicionar
+                    </button>
                 </div>
             </div>
         )}

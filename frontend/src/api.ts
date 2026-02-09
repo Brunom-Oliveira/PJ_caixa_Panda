@@ -50,7 +50,14 @@ export async function fetchVendas(dataInicio?: string, dataFim?: string, produto
   return response.json();
 }
 
-export async function cadastrarProduto(p: any): Promise<Produto> {
+type ProdutoPayload = {
+  nome: string;
+  codigos: string[];
+  valor: number;
+  estoque: number;
+};
+
+export async function cadastrarProduto(p: ProdutoPayload): Promise<Produto> {
   const response = await fetch(`${API_URL}/produtos`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -70,7 +77,7 @@ export async function cadastrarProduto(p: any): Promise<Produto> {
   return response.json();
 }
 
-export async function atualizarProduto(id: number, p: any): Promise<Produto> {
+export async function atualizarProduto(id: number, p: ProdutoPayload): Promise<Produto> {
   const response = await fetch(`${API_URL}/produtos/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
