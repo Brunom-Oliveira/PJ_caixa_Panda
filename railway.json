@@ -1,4 +1,4 @@
 {
   "buildCommand": "cd backend && npm install && npx prisma generate && npm run build",
-  "startCommand": "cd backend && npx prisma db push --accept-data-loss && node dist/index.js"
+  "startCommand": "cd backend && export DATABASE_URL=\"file:/data/banco.db\" && npx prisma db push --schema=prisma/schema.prisma && node dist/index.js"
 }
