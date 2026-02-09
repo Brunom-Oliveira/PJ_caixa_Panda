@@ -4,7 +4,12 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export async function fetchConfig(): Promise<Configuracao> {
   const response = await fetch(`${API_URL}/config`);
-  if (!response.ok) throw new Error('Erro ao buscar configurações');
+  if (!response.ok) {
+    const text = await response.text();
+    let msg = 'Erro ao buscar configurações';
+    try { const data = JSON.parse(text); msg = data.erro || msg; } catch { msg = text || msg; }
+    throw new Error(msg);
+  }
   return response.json();
 }
 
@@ -14,7 +19,12 @@ export async function updateConfig(config: Partial<Configuracao>): Promise<Confi
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config),
   });
-  if (!response.ok) throw new Error('Erro ao atualizar configurações');
+  if (!response.ok) {
+    const text = await response.text();
+    let msg = 'Erro ao atualizar configurações';
+    try { const data = JSON.parse(text); msg = data.erro || msg; } catch { msg = text || msg; }
+    throw new Error(msg);
+  }
   return response.json();
 }
 
@@ -47,12 +57,13 @@ export async function cadastrarProduto(p: any): Promise<Produto> {
     body: JSON.stringify(p),
   });
   if (!response.ok) {
+    const text = await response.text();
     let errorMessage = 'Erro ao cadastrar produto';
     try {
-      const errorData = await response.json();
+      const errorData = JSON.parse(text);
       errorMessage = errorData.erro || errorMessage;
     } catch {
-      errorMessage = await response.text() || errorMessage;
+      errorMessage = text || errorMessage;
     }
     throw new Error(errorMessage);
   }
@@ -66,12 +77,13 @@ export async function atualizarProduto(id: number, p: any): Promise<Produto> {
     body: JSON.stringify(p),
   });
   if (!response.ok) {
+    const text = await response.text();
     let errorMessage = 'Erro ao atualizar produto';
     try {
-      const errorData = await response.json();
+      const errorData = JSON.parse(text);
       errorMessage = errorData.erro || errorMessage;
     } catch {
-      errorMessage = await response.text() || errorMessage;
+      errorMessage = text || errorMessage;
     }
     throw new Error(errorMessage);
   }
@@ -134,12 +146,13 @@ export async function createVenda(itens: { produtoId: number; quantidade: number
     body: JSON.stringify({ itens, clienteId }),
   });
   if (!response.ok) {
+    const text = await response.text();
     let errorMessage = 'Falha ao finalizar venda';
     try {
-      const errorData = await response.json();
+      const errorData = JSON.parse(text);
       errorMessage = errorData.erro || errorMessage;
     } catch {
-      errorMessage = await response.text() || errorMessage;
+      errorMessage = text || errorMessage;
     }
     throw new Error(errorMessage);
   }
