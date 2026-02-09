@@ -18,4 +18,5 @@ app.use('/config', configRoutes);
 app.use('/clientes', clienteRoutes);
 
 const PORT = process.env.PORT || 3000;
+console.log('🔌 Database URL:', process.env.DATABASE_URL);
 app.listen(PORT, () => console.log(`✅ Servidor rodando na porta ${PORT}`));
