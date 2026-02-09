@@ -5,6 +5,6 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "cd backend && npm install && npx prisma generate && npx prisma db push && npm run build && npm start"
+    "start": "npx prisma db push --schema=backend/prisma/schema.prisma && node backend/dist/index.js"
   }
 }
