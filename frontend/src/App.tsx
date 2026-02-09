@@ -849,14 +849,15 @@ function App() {
                             <div 
                                 key={produto.id} 
                                 className="table-row animate-item" 
-                                style={{ gridTemplateColumns: '1fr 1fr 1fr auto', cursor: 'default' }}
+                                style={{ gridTemplateColumns: '1fr 1fr 1fr auto', cursor: 'pointer' }}
+                                onClick={() => promptQuantidade(produto)}
                             >
-                            <div style={{ textAlign: 'left', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => promptQuantidade(produto)}>{produto.nome}</div>
+                                <div style={{ textAlign: 'left', fontWeight: 'bold' }}>{produto.nome}</div>
                                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
                                     {produto.codigos?.map(c => c.codigo).join(', ')}
                                 </div>
                                 <div style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{formatCurrency(produto.valor)}</div>
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', gap: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
                                     <button className="secondary" style={{ padding: '0.4rem', fontSize: '1rem' }} onClick={() => startEditProduct(produto)}>✏️</button>
                                     <button className="danger" style={{ padding: '0.4rem', fontSize: '1rem' }} onClick={() => handleDeleteProduct(produto.id)}>🗑️</button>
                                 </div>
