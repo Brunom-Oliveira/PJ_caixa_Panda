@@ -17,6 +17,9 @@ export const cadastrarProduto = async (req: Request, res: Response) => {
     res.status(201).json(novo);
   } catch (err: any) {
     console.error('❌ Erro no cadastro de produto:', err);
+    if (err.code === 'P2002') {
+      return res.status(400).json({ erro: 'Este código de barras já está cadastrado em outro produto.' });
+    }
     res.status(400).json({ erro: err.message });
   }
 };
