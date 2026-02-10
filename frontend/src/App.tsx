@@ -240,6 +240,85 @@ function App() {
     }
   };
 
+  const handleGenerateStockPDF = async () => {
+    setLoading(true);
+    try {
+      // Garantir que temos a lista atualizada
+      const prods = await fetchProdutos();
+      setAllProducts(prods);
+
+      // Calcular totais
+      const valorTotalEstoque = prods.reduce((acc, p) => acc + (p.valor * p.estoque), 0);
+      const totalItens = prods.reduce((acc, p) => acc + p.estoque, 0);
+
+      // Criar elemento HTML temporário para o PDF
+      const container = document.createElement('div');
+      
+      // Estilo Inline para garantir a aparência no PDF
+      container.innerHTML = `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #000; background: #fff; width: 800px;">
+          <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px;">
+            <h1 style="margin: 0; text-transform: uppercase; font-size: 24px;">${config.nomeMercado}</h1>
+            <p style="margin: 5px 0; font-size: 14px;">CNPJ: ${config.cnpj}</p>
+            <h2 style="margin-top: 15px; font-size: 18px;">RELATÓRIO DE ESTOQUE</h2>
+            <p style="font-size: 12px; color: #666;">Gerado em: ${new Date().toLocaleString()}</p>
+          </div>
+          
+          <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 20px;">
+            <thead>
+              <tr style="background-color: #f2f2f2;">
+                <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">PRODUTO</th>
+                <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">CÓDIGO</th>
+                <th style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">QTD</th>
+                <th style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">UNIT. (R$)</th>
+                <th style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">TOTAL (R$)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${prods.map((p, index) => `
+                <tr style="background-color: ${index % 2 === 0 ? '#fff' : '#f9f9f9'};">
+                  <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>${p.nome}</strong></td>
+                  <td style="padding: 8px; border-bottom: 1px solid #eee; color: #555;">${p.codigos?.map(c => c.codigo).join(', ') || '-'}</td>
+                  <td style="padding: 8px; text-align: center; border-bottom: 1px solid #eee; font-weight: bold; ${p.estoque <= 0 ? 'color: red;' : ''}">${p.estoque}</td>
+                  <td style="padding: 8px; text-align: right; border-bottom: 1px solid #eee;">${p.valor.toFixed(2)}</td>
+                  <td style="padding: 8px; text-align: right; border-bottom: 1px solid #eee;">${(p.valor * p.estoque).toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div style="margin-top: 20px; text-align: right; border-top: 2px solid #333; padding-top: 15px;">
+             <div style="font-size: 14px; margin-bottom: 5px;">
+              TOTAL DE ITENS: <strong>${totalItens}</strong>
+            </div>
+            <div style="font-size: 18px; font-weight: bold;">
+              VALOR TOTAL EM ESTOQUE: ${valorTotalEstoque.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </div>
+          </div>
+          
+           <div style="margin-top: 40px; text-align: center; font-size: 10px; color: #999; border-top: 1px dashed #ccc; padding-top: 10px;">
+            Sistema Panda Caixa - Relatório gerado automaticamente
+          </div>
+        </div>
+      `;
+
+      const opt = {
+        margin: 10,
+        filename: `relatorio_estoque_${new Date().toISOString().split('T')[0]}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      await html2pdf().set(opt).from(container).save();
+    } catch (err) {
+      console.error(err);
+      setError('Erro ao gerar relatório de estoque');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   // Funções de Gestão de Clientes
   const openClientesModal = async () => {
@@ -517,6 +596,7 @@ function App() {
             <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>🐼 Caixa Panda</h1>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '1rem', alignItems: 'center' }}>
                 <button className="btn-icon" onClick={openConfigModal} title="Configurações do Mercado">⚙️</button>
+                <button className="btn-icon" onClick={handleGenerateStockPDF} title="Baixar Relatório de Estoque" style={{ background: '#3b82f6', borderColor: '#3b82f6' }}>📦</button>
                 <button className="btn-icon" onClick={openReportModal} title="Extrato e Relatórios">📊</button>
                 <button className="btn-icon" onClick={() => setShowAddProductModal(true)} title="Cadastrar Novo Produto">➕</button>
                 <button className="btn-icon" onClick={openClientesModal} title="Gerenciar Clientes">👥</button>
