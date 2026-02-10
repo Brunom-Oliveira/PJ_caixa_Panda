@@ -443,6 +443,17 @@ function App() {
       setTimeout(() => setError(null), 3000);
       return;
     }
+
+    // Verificar estoque
+    const itemNoCarrinho = items.find(i => i.produtoId === qtyProduct.id);
+    const qtdAtual = itemNoCarrinho ? itemNoCarrinho.quantidade : 0;
+
+    if (qtdAtual + qtd > qtyProduct.estoque) {
+      setError(`Estoque insuficiente! Restam apenas ${qtyProduct.estoque} unidades.`);
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
     addProductFromList(qtyProduct, qtd);
     setShowQtyModal(false);
     setQtyProduct(null);
@@ -869,12 +880,18 @@ function App() {
                             <div 
                                 key={produto.id} 
                                 className="table-row animate-item" 
-                                style={{ gridTemplateColumns: '1fr 1fr 1fr auto', cursor: 'pointer' }}
+                                style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr auto', cursor: 'pointer' }}
                                 onClick={() => promptQuantidade(produto)}
                             >
                                 <div style={{ textAlign: 'left', fontWeight: 'bold' }}>{produto.nome}</div>
                                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
                                     {produto.codigos?.map(c => c.codigo).join(', ')}
+                                </div>
+                                <div style={{ 
+                                    fontWeight: 'bold', 
+                                    color: produto.estoque <= 0 ? 'var(--danger)' : produto.estoque < 10 ? 'var(--warning, orange)' : 'var(--success)' 
+                                }}>
+                                    {produto.estoque} un
                                 </div>
                                 <div style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{formatCurrency(produto.valor)}</div>
                                 <div style={{ display: 'flex', gap: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
