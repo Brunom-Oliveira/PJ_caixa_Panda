@@ -256,7 +256,7 @@ function App() {
       
       // Estilo Inline para garantir a aparência no PDF
       container.innerHTML = `
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #000; background: #fff; width: 1100px;">
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #000; background: #fff; width: 1020px; box-sizing: border-box;">
           <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px;">
             <h1 style="margin: 0; text-transform: uppercase; font-size: 24px;">${config.nomeMercado}</h1>
             <p style="margin: 5px 0; font-size: 14px;">CNPJ: ${config.cnpj}</p>
@@ -287,7 +287,7 @@ function App() {
             </tbody>
           </table>
 
-          <div style="margin-top: 20px; text-align: right; border-top: 2px solid #333; padding-top: 15px;">
+          <div style="margin-top: 20px; text-align: right; border-top: 2px solid #333; padding-top: 15px; padding-right: 20px;">
              <div style="font-size: 14px; margin-bottom: 5px;">
               TOTAL DE ITENS: <strong>${totalItens}</strong>
             </div>
