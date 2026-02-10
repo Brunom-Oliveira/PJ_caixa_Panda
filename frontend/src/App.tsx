@@ -725,7 +725,7 @@ function App() {
 
         {/* Modal: Cadastro de Produto */}
         {showAddProductModal && (
-            <div className="modal-overlay" onClick={() => setShowAddProductModal(false)} style={{ zIndex: 3000 }}>
+            <div className="modal-overlay" onClick={() => setShowAddProductModal(false)} style={{ zIndex: 99999 }}>
                 <div className="modal" onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                         <h2>{editingProduct ? '📝 Editar Produto' : '➕ Novo Produto'}</h2>
@@ -1162,7 +1162,6 @@ function App() {
 
         <style dangerouslySetInnerHTML={{ __html: `
             .sidebar .btn-icon { font-size: 1.5rem !important; }
-            .modal-overlay { z-index: 2000 !important; }
         `}} />
 
         {/* Floating Error */}
