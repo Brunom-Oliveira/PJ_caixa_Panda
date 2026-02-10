@@ -479,22 +479,46 @@ function App() {
 
   const handleWhatsApp = () => {
     if (!receipt) return;
-    let text = `*${config.nomeMercado} - NOTA FISCAL #${receipt.id}*\n\n`;
-    if (receipt.cliente) {
-        text += `*CLIENTE: ${receipt.cliente.nome}*\n`;
-        if (receipt.cliente.whatsapp) {
-            text += `*WHATSAPP: ${receipt.cliente.whatsapp}*\n`;
-        }
-        text += '\n';
-    }
-    text += receipt.itens.map(i => `${i.quantidade}x ${i.produto?.nome} - ${formatCurrency(i.subtotal)}`).join('\n') +
-      `\n\n*TOTAL: ${formatCurrency(receipt.total)}*\n` +
-      `CNPJ: ${config.cnpj}\n` +
-      (config.endereco ? `ENDEREÇO: ${config.endereco}\n` : '') +
-      `Data: ${new Date(receipt.dataVenda).toLocaleString()}`;
+
+    const dataVenda = new Date(receipt.dataVenda).toLocaleString();
     
+    let text = `🐼 *${config.nomeMercado}*\n`;
+    text += `📄 *Pedido #${receipt.id.toString().padStart(6, '0')}*\n`;
+    text += `📅 ${dataVenda}\n\n`;
+
+    if (receipt.cliente) {
+        text += `👤 *Cliente:* ${receipt.cliente.nome}\n`;
+        text += `--------------------------------\n`;
+    }
+
+    text += `*ITENS DO PEDIDO:*\n`;
+    receipt.itens.forEach(item => {
+        text += `▪️ ${item.quantidade}x ${item.produto?.nome}\n`;
+        text += `   Valor: ${formatCurrency(item.subtotal)}\n`;
+    });
+    
+    text += `--------------------------------\n`;
+    text += `💰 *TOTAL: ${formatCurrency(receipt.total)}*\n`;
+    text += `--------------------------------\n\n`;
+    
+    if (config.cnpj) text += `🏢 CNPJ: ${config.cnpj}\n`;
+    if (config.endereco) text += `📍 ${config.endereco}\n`;
+    
+    text += `\nObrigado pela preferência! 🐼`;
+
     const encodedText = encodeURIComponent(text);
-    window.open(`https://wa.me/?text=${encodedText}`, '_blank');
+    
+    let whatsappUrl = `https://wa.me/?text=${encodedText}`;
+    
+    // Se tiver cliente com telefone, direciona para ele
+    if (receipt.cliente && receipt.cliente.whatsapp) {
+        const phone = receipt.cliente.whatsapp.replace(/\D/g, ''); // Remove tudo que não é número
+        if (phone.length >= 10) { // Validação básica
+             whatsappUrl = `https://wa.me/55${phone}?text=${encodedText}`;
+        }
+    }
+    
+    window.open(whatsappUrl, '_blank');
   };
 
   const addProductFromList = (produto: Produto, quantidade = 1) => {
