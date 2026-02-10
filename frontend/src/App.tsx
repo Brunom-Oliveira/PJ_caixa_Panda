@@ -256,7 +256,7 @@ function App() {
       
       // Estilo Inline para garantir a aparência no PDF
       container.innerHTML = `
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #000; background: #fff; width: 800px;">
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #000; background: #fff; width: 1100px;">
           <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px;">
             <h1 style="margin: 0; text-transform: uppercase; font-size: 24px;">${config.nomeMercado}</h1>
             <p style="margin: 5px 0; font-size: 14px;">CNPJ: ${config.cnpj}</p>
@@ -307,7 +307,7 @@ function App() {
         filename: `relatorio_estoque_${new Date().toISOString().split('T')[0]}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
       };
 
       await html2pdf().set(opt).from(container).save();
