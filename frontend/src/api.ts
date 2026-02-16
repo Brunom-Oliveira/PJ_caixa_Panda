@@ -206,3 +206,15 @@ export async function fetchHistoricoMovimentacao(produtoId?: number): Promise<an
     if (!response.ok) throw new Error('Erro ao buscar histórico de estoque');
     return response.json();
 }
+
+export async function fetchDashboardStats(): Promise<any> {
+    const response = await fetch(`${API_URL}/estoque/dashboard`);
+    if (!response.ok) throw new Error('Erro ao buscar dashboard');
+    return response.json();
+}
+
+export async function fetchSugestaoCompra(): Promise<any[]> {
+    const response = await fetch(`${API_URL}/estoque/sugestao-compra`);
+    if (!response.ok) throw new Error('Erro ao buscar sugestão de compra');
+    return response.json();
+}

@@ -1,3 +1,4 @@
+
 export interface CodigoBarras {
   id: number;
   codigo: string;
@@ -7,7 +8,12 @@ export interface Produto {
   id: number;
   nome: string;
   valor: number;
+  precoCusto?: number;
   estoque: number;
+  estoqueMinimo?: number;
+  unidade?: string;
+  localizacao?: string;
+  dataValidade?: string;
   codigos?: CodigoBarras[];
 }
 

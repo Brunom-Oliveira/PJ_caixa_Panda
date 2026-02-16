@@ -64,7 +64,17 @@ function App() {
 
   // Estados para Produtos
   const [editingProduct, setEditingProduct] = useState<Produto | null>(null);
-  const [newProd, setNewProd] = useState({ nome: '', codigos: '', valor: '', estoque: '' });
+  const [newProd, setNewProd] = useState({ 
+    nome: '', 
+    codigos: '', 
+    valor: '', 
+    estoque: '', 
+    precoCusto: '', 
+    estoqueMinimo: '5', 
+    unidade: 'UN', 
+    localizacao: '', 
+    dataValidade: '' 
+  });
 
   // Estados para Configurações
   const [editConfig, setEditConfig] = useState({ nomeMercado: '', cnpj: '', endereco: '' });
@@ -391,7 +401,12 @@ function App() {
         nome: newProd.nome,
         codigos: newProd.codigos.split(',').map(c => c.trim()).filter(c => c),
         valor: parseFloat(newProd.valor),
-        estoque: parseInt(newProd.estoque)
+        estoque: parseInt(newProd.estoque),
+        precoCusto: parseFloat(newProd.precoCusto) || 0,
+        estoqueMinimo: parseInt(newProd.estoqueMinimo) || 5,
+        unidade: newProd.unidade || 'UN',
+        localizacao: newProd.localizacao,
+        dataValidade: newProd.dataValidade ? new Date(newProd.dataValidade).toISOString() : undefined
       };
 
       if (editingProduct) {
@@ -404,7 +419,17 @@ function App() {
 
       setShowAddProductModal(false);
       setEditingProduct(null);
-      setNewProd({ nome: '', codigos: '', valor: '', estoque: '' });
+      setNewProd({ 
+        nome: '', 
+        codigos: '', 
+        valor: '', 
+        estoque: '', 
+        precoCusto: '', 
+        estoqueMinimo: '5', 
+        unidade: 'UN', 
+        localizacao: '', 
+        dataValidade: '' 
+      });
       setTimeout(() => setError(null), 3000);
       
       // Refresh list if search modal is open
@@ -441,7 +466,12 @@ function App() {
       nome: p.nome,
       codigos: p.codigos?.map(c => c.codigo).join(', ') || '',
       valor: p.valor.toString(),
-      estoque: p.estoque.toString()
+      estoque: p.estoque.toString(),
+      precoCusto: p.precoCusto?.toString() || '',
+      estoqueMinimo: p.estoqueMinimo?.toString() || '5',
+      unidade: p.unidade || 'UN',
+      localizacao: p.localizacao || '',
+      dataValidade: p.dataValidade ? p.dataValidade.split('T')[0] : ''
     });
     setShowAddProductModal(true);
   };
@@ -779,12 +809,43 @@ function App() {
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                             <div className="form-group">
-                                <label>Preço (R$)</label>
+                                <label>Preço Venda (R$)</label>
                                 <input required type="number" step="0.01" value={newProd.valor} onChange={e => setNewProd({...newProd, valor: e.target.value})} />
                             </div>
                             <div className="form-group">
-                                <label>Estoque</label>
+                                <label>Preço Custo (R$)</label>
+                                <input type="number" step="0.01" value={newProd.precoCusto} onChange={e => setNewProd({...newProd, precoCusto: e.target.value})} />
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                             <div className="form-group">
+                                <label>Estoque Atual</label>
                                 <input required type="number" value={newProd.estoque} onChange={e => setNewProd({...newProd, estoque: e.target.value})} />
+                            </div>
+                            <div className="form-group">
+                                <label>Estoque Mín.</label>
+                                <input type="number" value={newProd.estoqueMinimo} onChange={e => setNewProd({...newProd, estoqueMinimo: e.target.value})} />
+                            </div>
+                             <div className="form-group">
+                                <label>Unidade</label>
+                                <input list="unidades" value={newProd.unidade} onChange={e => setNewProd({...newProd, unidade: e.target.value})} placeholder="UN" />
+                                <datalist id="unidades">
+                                    <option value="UN"/>
+                                    <option value="KG"/>
+                                    <option value="L"/>
+                                    <option value="CX"/>
+                                    <option value="PCT"/>
+                                </datalist>
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                              <div className="form-group">
+                                <label>Localização (Corredor/Prat.)</label>
+                                <input value={newProd.localizacao} onChange={e => setNewProd({...newProd, localizacao: e.target.value})} placeholder="Ex: C1-P2" />
+                            </div>
+                              <div className="form-group">
+                                <label>Validade (Opcional)</label>
+                                <input type="date" value={newProd.dataValidade} onChange={e => setNewProd({...newProd, dataValidade: e.target.value})} />
                             </div>
                         </div>
                         <button type="submit" className="success" style={{ width: '100%', marginTop: '1rem', padding: '1rem' }}>

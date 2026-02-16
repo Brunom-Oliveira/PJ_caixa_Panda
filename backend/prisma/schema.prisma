@@ -8,13 +8,18 @@ generator client {
 }
 
 model Produto {
-  id           Int                   @id @default(autoincrement())
-  nome         String
-  valor        Float
-  estoque      Int
-  criadoEm     DateTime              @default(now())
-  codigos      CodigoBarras[]
-  itensVenda   ItemVenda[]
+  id            Int                   @id @default(autoincrement())
+  nome          String
+  valor         Float                 // Preço de Venda
+  precoCusto    Float                 @default(0) // Preço de Custo
+  estoque       Int
+  estoqueMinimo Int                   @default(5) // Alerta de Reposição
+  unidade       String                @default("UN") // UN, KG, LT, CX
+  localizacao   String?               // Corredor A, Prateleira 2
+  dataValidade  DateTime?             // Validade do lote atual
+  criadoEm      DateTime              @default(now())
+  codigos       CodigoBarras[]
+  itensVenda    ItemVenda[]
   movimentacoes MovimentacaoEstoque[]
 }
 

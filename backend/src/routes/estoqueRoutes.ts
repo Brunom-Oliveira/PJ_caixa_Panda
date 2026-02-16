@@ -1,9 +1,12 @@
 
 import { Router } from 'express';
 // @ts-ignore
-import { registrarMovimentacao, corrigirEstoque, listarHistorico } from '../controllers/estoqueController.js';
+import { registrarMovimentacao, corrigirEstoque, listarHistorico, getDashboardStats, getSugestaoCompra } from '../controllers/estoqueController.js';
 
 const router = Router();
+
+router.get('/dashboard', getDashboardStats);
+router.get('/sugestao-compra', getSugestaoCompra);
 
 router.post('/movimentacao', registrarMovimentacao);
 router.post('/ajuste', corrigirEstoque);

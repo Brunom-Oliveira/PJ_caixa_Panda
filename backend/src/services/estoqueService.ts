@@ -55,19 +55,68 @@ export const estoqueService = {
   },
 
   async getHistorico(produtoId: number) {
-      return await prisma.movimentacaoEstoque.findMany({
-          where: { produtoId },
-          orderBy: { data: 'desc' },
-          include: { produto: true }
-      });
+    return prisma.movimentacaoEstoque.findMany({
+      where: { produtoId },
+      orderBy: { data: 'desc' },
+      take: 50
+    });
   },
 
   async listarGeral() {
-      return await prisma.movimentacaoEstoque.findMany({
-          orderBy: { data: 'desc' },
-          take: 100, // Limit to last 100 for display
-          include: { produto: true }
-      });
+    return prisma.movimentacaoEstoque.findMany({
+      orderBy: { data: 'desc' },
+      take: 50,
+      include: { produto: true }
+    });
+  },
+
+  async getSugestaoCompra() {
+    // Retorna produtos com estoque baixo
+    // Como o estoqueMinimo é dinâmico, precisamos filtrar no banco ou na aplicação.
+    // O prisma não permite comparar duas colunas diretamente no 'where' de forma simples em todas as versões.
+    // Vamos buscar os produtos e filtrar, assumindo que a base não é gigantesca para um mini mercado.
+    // Se crescer, usar raw query é melhor.
+    const produtos = await prisma.produto.findMany({
+        where: {
+            // Otimização: buscar apenas se estoque for baixo (ex: menor que 100 como corte seguro)
+            // Mas para garantir, trazemos tudo e filtramos.
+        }
+    });
+
+    return produtos.filter(p => p.estoque <= (p.estoqueMinimo || 5)).map(p => ({
+        ...p,
+        sugestaoReposicao: (p.estoqueMinimo || 5) * 2 - p.estoque // Sugere comprar para dobrar o mínimo
+    }));
+  },
+
+  async getDashboardStats() {
+    const produtos = await prisma.produto.findMany();
+    
+    const totalItens = produtos.length;
+    const itensBaixoEstoque = produtos.filter(p => p.estoque <= (p.estoqueMinimo || 5)).length;
+    
+    // Cálculos Financeiros
+    let valorTotalCusto = 0;
+    let valorTotalVenda = 0;
+    
+    produtos.forEach(p => {
+        if (p.estoque > 0) {
+            valorTotalCusto += p.estoque * (p.precoCusto || 0);
+            valorTotalVenda += p.estoque * p.valor;
+        }
+    });
+
+    const lucroProjetado = valorTotalVenda - valorTotalCusto;
+    const margemMedia = valorTotalVenda > 0 ? (lucroProjetado / valorTotalVenda) * 100 : 0;
+
+    return {
+        totalItens,
+        itensBaixoEstoque,
+        valorTotalCusto,
+        valorTotalVenda,
+        lucroProjetado,
+        margemMedia
+    };
   },
 
   // Helper to set absolute stock (correction)

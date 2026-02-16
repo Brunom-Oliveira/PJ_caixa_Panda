@@ -64,3 +64,21 @@ export const listarHistorico = async (req: Request, res: Response, next: NextFun
     next(err);
   }
 };
+
+export const getDashboardStats = async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+        const stats = await estoqueService.getDashboardStats();
+        res.json(stats);
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const getSugestaoCompra = async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+        const sugestao = await estoqueService.getSugestaoCompra();
+        res.json(sugestao);
+    } catch (err) {
+        next(err);
+    }
+};
