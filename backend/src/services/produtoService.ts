@@ -8,8 +8,18 @@ interface ProdutoInput {
 }
 
 export const produtoService = {
-  listar: async () => {
+  listar: async (termo?: string) => {
+    const where: any = {};
+
+    if (termo) {
+      where.OR = [
+        { nome: { contains: termo } }, // Removed mode: 'insensitive' for compatibility, check if needed
+        { codigos: { some: { codigo: { contains: termo } } } }
+      ];
+    }
+
     return prisma.produto.findMany({ 
+      where,
       include: { codigos: true },
       orderBy: { nome: 'asc' } 
     });

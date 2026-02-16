@@ -1,6 +1,8 @@
 
 import { PrismaClient } from '@prisma/client';
 import { prisma } from '../database/prisma.js';
+import { AppError } from '../errors/AppError.js';
+import { estoqueService } from './estoqueService.js';
 
 export const vendaService = {
   async cadastrar(itens: { produtoId: number; quantidade: number }[], clienteId?: number) {
@@ -11,10 +13,10 @@ export const vendaService = {
     for (const item of itens) {
       const produto = await prisma.produto.findUnique({ where: { id: item.produtoId } });
       if (!produto) {
-        throw new Error(`Produto não encontrado: ID ${item.produtoId}`);
+        throw new AppError(`Produto não encontrado: ID ${item.produtoId}`, 404);
       }
       if (produto.estoque < item.quantidade) {
-        throw new Error(`Estoque insuficiente para o produto ${produto.nome}`);
+        throw new AppError(`Estoque insuficiente para o produto ${produto.nome}`, 400);
       }
     }
 
@@ -57,16 +59,15 @@ export const vendaService = {
         }
       });
 
-      // Update Stock
+      // Update Stock via EstoqueService
       for (const item of itemsToCreate) {
-        await tx.produto.update({
-          where: { id: item.produtoId },
-          data: {
-            estoque: {
-              decrement: item.quantidade
-            }
-          }
-        });
+        await estoqueService.registrarMovimentacao(
+          item.produtoId,
+          'SAIDA',
+          item.quantidade,
+          `Venda #${novaVenda.id}`,
+          tx
+        );
       }
 
       return novaVenda;

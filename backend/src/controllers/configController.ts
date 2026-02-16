@@ -1,8 +1,8 @@
 
 import { prisma } from '../database/prisma.js';
-import  type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 
-export const getConfig = async (req: Request, res: Response) => {
+export const getConfig = async (req: Request, res: Response, next: NextFunction) => {
   try {
     let config = await prisma.configuracao.findFirst();
     if (!config) {
@@ -11,12 +11,12 @@ export const getConfig = async (req: Request, res: Response) => {
       });
     }
     res.json(config);
-  } catch (err: any) {
-    res.status(500).json({ erro: err.message });
+  } catch (err) {
+    next(err);
   }
 };
 
-export const updateConfig = async (req: Request, res: Response) => {
+export const updateConfig = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { nomeMercado, cnpj, endereco } = req.body;
     const config = await prisma.configuracao.upsert({
@@ -25,7 +25,7 @@ export const updateConfig = async (req: Request, res: Response) => {
       create: { id: 1, nomeMercado, cnpj, endereco }
     });
     res.json(config);
-  } catch (err: any) {
-    res.status(500).json({ erro: err.message });
+  } catch (err) {
+    next(err);
   }
 };

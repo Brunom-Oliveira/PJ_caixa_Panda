@@ -8,13 +8,14 @@ generator client {
 }
 
 model Produto {
-  id           Int            @id @default(autoincrement())
+  id           Int                   @id @default(autoincrement())
   nome         String
   valor        Float
   estoque      Int
-  criadoEm     DateTime       @default(now())
+  criadoEm     DateTime              @default(now())
   codigos      CodigoBarras[]
   itensVenda   ItemVenda[]
+  movimentacoes MovimentacaoEstoque[]
 }
 
 model CodigoBarras {
@@ -58,4 +59,14 @@ model Configuracao {
   nomeMercado String @default("Panda Market")
   cnpj        String @default("00.000.000/0001-00")
   endereco    String @default("")
+}
+
+model MovimentacaoEstoque {
+  id          Int      @id @default(autoincrement())
+  produtoId   Int
+  tipo        String   // ENTRADA, SAIDA, AJUSTE, PERDA
+  quantidade  Int
+  motivo      String?
+  data        DateTime @default(now())
+  produto     Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 }

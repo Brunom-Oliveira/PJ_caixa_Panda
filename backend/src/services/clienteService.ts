@@ -7,8 +7,21 @@ interface ClienteInput {
 }
 
 export const clienteService = {
-  listar: async () => {
-    return prisma.cliente.findMany({ orderBy: { nome: 'asc' } });
+  listar: async (termo?: string) => {
+    const where: any = {};
+    
+    if (termo) {
+      where.OR = [
+        { nome: { contains: termo } },
+        { whatsapp: { contains: termo } },
+        { email: { contains: termo } }
+      ];
+    }
+
+    return prisma.cliente.findMany({ 
+      where,
+      orderBy: { nome: 'asc' } 
+    });
   },
 
   buscarPorId: async (id: number) => {

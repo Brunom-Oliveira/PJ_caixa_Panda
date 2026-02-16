@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import { EstoqueModal } from './components/EstoqueModal';
 import { 
     fetchProdutoByCodigo, 
     createVenda, 
@@ -37,6 +38,8 @@ function App() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showEstoqueModal, setShowEstoqueModal] = useState(false);
+
   const [showScanner, setShowScanner] = useState(false);
   const [reportDates, setReportDates] = useState({ inicio: new Date().toISOString().split('T')[0], fim: new Date().toISOString().split('T')[0] });
   const [reportProductId, setReportProductId] = useState<number | null>(null);
@@ -563,16 +566,22 @@ function App() {
     setQtyValue('1');
   };
 
-  const filteredProducts = allProducts.filter(p => 
-    p.nome.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.codigos?.some(c => c.codigo.includes(searchTerm))
-  );
+  // Efeitos para busca no backend
+  useEffect(() => {
+    if (!showSearchModal) return;
+    const timer = setTimeout(() => {
+      fetchProdutos(searchTerm).then(setAllProducts).catch(console.error);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm, showSearchModal]);
 
-  const filteredClientes = allClientes.filter(c => 
-    c.nome.toLowerCase().includes(clienteSearchTerm.toLowerCase()) ||
-    c.whatsapp?.includes(clienteSearchTerm) ||
-    c.email?.toLowerCase().includes(clienteSearchTerm.toLowerCase())
-  );
+  useEffect(() => {
+    if (!showClientesModal) return;
+    const timer = setTimeout(() => {
+      fetchClientes(clienteSearchTerm).then(setAllClientes).catch(console.error);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [clienteSearchTerm, showClientesModal]);
 
   const handleScan = async (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -620,6 +629,7 @@ function App() {
             <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>🐼 Caixa Panda</h1>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '1rem', alignItems: 'center' }}>
                 <button className="btn-icon" onClick={openConfigModal} title="Configurações do Mercado">⚙️</button>
+                <button className="btn-icon" onClick={() => setShowEstoqueModal(true)} title="Gestão de Estoque (MiniWMS)" style={{ background: '#7c3aed', borderColor: '#7c3aed' }}>🏭</button>
                 <button className="btn-icon" onClick={handleGenerateStockPDF} title="Baixar Relatório de Estoque" style={{ background: '#3b82f6', borderColor: '#3b82f6' }}>📦</button>
                 <button className="btn-icon" onClick={openReportModal} title="Extrato e Relatórios">📊</button>
                 <button className="btn-icon" onClick={() => setShowAddProductModal(true)} title="Cadastrar Novo Produto">➕</button>
@@ -719,6 +729,9 @@ function App() {
                 disabled={loading}
             />
         </div>
+
+        {/* Modal: Estoque (MiniWMS) */}
+        {showEstoqueModal && <EstoqueModal onClose={() => setShowEstoqueModal(false)} />}
 
         {/* Modal: Configurações */}
         {showConfigModal && (
@@ -980,7 +993,7 @@ function App() {
                     />
 
                     <div style={{ marginTop: '1rem', maxHeight: '400px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '24px' }}>
-                        {filteredProducts.map(produto => (
+                        {allProducts.map(produto => (
                             <div 
                                 key={produto.id} 
                                 className="table-row animate-item" 
@@ -1004,7 +1017,7 @@ function App() {
                                 </div>
                             </div>
                         ))}
-                        {filteredProducts.length === 0 && (
+                        {allProducts.length === 0 && (
                             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                                 Nenhum produto encontrado.
                             </div>
@@ -1087,7 +1100,7 @@ function App() {
                     />
 
                     <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '24px' }}>
-                        {filteredClientes.map(cliente => (
+                        {allClientes.map(cliente => (
                             <div key={cliente.id} className="table-row animate-item" style={{ gridTemplateColumns: '1fr 1fr 1fr auto' }}>
                                 <div style={{ fontWeight: 'bold', textAlign: 'left' }}>{cliente.nome}</div>
                                 <div style={{ color: 'var(--text-secondary)' }}>{cliente.whatsapp || '-'}</div>
@@ -1099,7 +1112,7 @@ function App() {
                                 </div>
                             </div>
                         ))}
-                        {filteredClientes.length === 0 && (
+                        {allClientes.length === 0 && (
                             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Nenhum cliente encontrado.</div>
                         )}
                     </div>

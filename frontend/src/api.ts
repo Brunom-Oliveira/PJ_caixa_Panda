@@ -28,8 +28,9 @@ export async function updateConfig(config: Partial<Configuracao>): Promise<Confi
   return response.json();
 }
 
-export async function fetchProdutos(): Promise<Produto[]> {
-  const response = await fetch(`${API_URL}/produtos`);
+export async function fetchProdutos(query?: string): Promise<Produto[]> {
+  const url = query ? `${API_URL}/produtos?q=${encodeURIComponent(query)}` : `${API_URL}/produtos`;
+  const response = await fetch(url);
   if (!response.ok) throw new Error('Erro ao buscar lista de produtos');
   return response.json();
 }
@@ -113,8 +114,9 @@ export async function fetchProdutoByCodigo(codigo: string): Promise<Produto | nu
   return response.json();
 }
 
-export async function fetchClientes(): Promise<Cliente[]> {
-  const response = await fetch(`${API_URL}/clientes`);
+export async function fetchClientes(query?: string): Promise<Cliente[]> {
+  const url = query ? `${API_URL}/clientes?q=${encodeURIComponent(query)}` : `${API_URL}/clientes`;
+  const response = await fetch(url);
   if (!response.ok) throw new Error('Erro ao buscar clientes');
   return response.json();
 }
@@ -169,3 +171,38 @@ export async function createVenda(itens: { produtoId: number; quantidade: number
 export const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
+
+export async function movimentarEstoque(dados: { produtoId: number; tipo: string; quantidade: number; motivo: string }): Promise<void> {
+  const response = await fetch(`${API_URL}/estoque/movimentacao`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(dados),
+  });
+  if (!response.ok) {
+     const text = await response.text();
+     let msg = 'Erro ao realizar movimentação';
+     try { const data = JSON.parse(text); msg = data.erro || msg; } catch { msg = text || msg; }
+     throw new Error(msg);
+  }
+}
+
+export async function corrigirEstoque(dados: { produtoId: number; novoEstoque: number; motivo: string }): Promise<void> {
+    const response = await fetch(`${API_URL}/estoque/ajuste`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dados),
+    });
+    if (!response.ok) {
+       const text = await response.text();
+       let msg = 'Erro ao ajustar estoque';
+       try { const data = JSON.parse(text); msg = data.erro || msg; } catch { msg = text || msg; }
+       throw new Error(msg);
+    }
+}
+
+export async function fetchHistoricoMovimentacao(produtoId?: number): Promise<any[]> {
+    const url = produtoId ? `${API_URL}/estoque/historico/${produtoId}` : `${API_URL}/estoque/historico`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Erro ao buscar histórico de estoque');
+    return response.json();
+}
