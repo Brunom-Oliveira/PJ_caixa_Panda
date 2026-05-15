@@ -1,0 +1,10 @@
+
+node_modules
+dist
+logs
+*.db
+*.db-journal
+.env
+.git
+.vscode
+Dockerfile
