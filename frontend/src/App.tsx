@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { EstoqueModal } from './components/EstoqueModal';
 import { 
@@ -28,7 +29,107 @@ declare const html2pdf: () => {
   };
 };
 
+interface ProductSearchModalProps {
+    allProducts: Produto[];
+    searchTerm: string;
+    setSearchTerm: (val: string) => void;
+    onClose: () => void;
+    onSelect: (p: Produto) => void;
+    onEdit: (p: Produto) => void;
+    onDelete: (id: number) => void;
+}
+
+const ProductSearchModal: React.FC<ProductSearchModalProps> = ({ 
+    allProducts, searchTerm, setSearchTerm, onClose, onSelect, onEdit, onDelete 
+}) => {
+    const parentRef = useRef<HTMLDivElement>(null);
+
+    const rowVirtualizer = useVirtualizer({
+        count: allProducts.length,
+        getScrollElement: () => parentRef.current,
+        estimateSize: () => 60,
+        overscan: 5,
+    });
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal" style={{ maxWidth: '700px', width: '95%', height: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h2>📦 Buscar Produto</h2>
+                    <button className="secondary-close" onClick={onClose}>X</button>
+                </div>
+
+                <input 
+                    className="big-input" 
+                    style={{ fontSize: '1.1rem', padding: '1rem', marginBottom: '1rem' }}
+                    placeholder="Filtrar por nome ou código..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    autoFocus
+                />
+
+                <div ref={parentRef} style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '16px' }}>
+                    <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+                        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                            const produto = allProducts[virtualRow.index];
+                            if (!produto) return null;
+                            return (
+                                <div 
+                                    key={virtualRow.key} 
+                                    className="table-row animate-item" 
+                                    style={{ 
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        width: '100%',
+                                        height: `${virtualRow.size}px`,
+                                        transform: `translateY(${virtualRow.start}px)`,
+                                        gridTemplateColumns: '2fr 1fr 1fr 1fr auto', 
+                                        cursor: 'pointer',
+                                        display: 'grid',
+                                        alignItems: 'center',
+                                        padding: '0 1rem',
+                                        borderBottom: '1px solid var(--border)',
+                                        boxSizing: 'border-box'
+                                    }}
+                                    onClick={() => onSelect(produto)}
+                                >
+                                    <div style={{ textAlign: 'left', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{produto.nome}</div>
+                                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                                        {produto.codigos?.map(c => c.codigo).join(', ') || '-'}
+                                    </div>
+                                    <div style={{ 
+                                        fontWeight: 'bold', 
+                                        textAlign: 'center',
+                                        color: produto.estoque <= 0 ? 'var(--danger)' : produto.estoque < 10 ? 'var(--warning, orange)' : 'var(--success)' 
+                                    }}>
+                                        {produto.estoque} {produto.unidade || 'un'}
+                                    </div>
+                                    <div style={{ color: 'var(--accent)', fontWeight: 'bold', textAlign: 'right' }}>{formatCurrency(produto.valor)}</div>
+                                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
+                                        <button className="secondary" style={{ padding: '0.4rem', fontSize: '0.9rem' }} onClick={() => onEdit(produto)}>✏️</button>
+                                        <button className="danger" style={{ padding: '0.4rem', fontSize: '0.9rem' }} onClick={() => onDelete(produto.id)}>🗑️</button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {allProducts.length === 0 && (
+                            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                Nenhum produto encontrado.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+import { LoginPage } from './components/LoginPage';
+import { useAuth } from './contexts/AuthContext';
+
 function App() {
+  const { user, token, logout, loading: authLoading } = useAuth();
   const [items, setItems] = useState<ItemVenda[]>([]);
   const [barcode, setBarcode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,6 +141,7 @@ function App() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showEstoqueModal, setShowEstoqueModal] = useState(false);
 
+  // ... (rest of states)
   const [showScanner, setShowScanner] = useState(false);
   const [reportDates, setReportDates] = useState({ inicio: new Date().toISOString().split('T')[0], fim: new Date().toISOString().split('T')[0] });
   const [reportProductId, setReportProductId] = useState<number | null>(null);
@@ -111,16 +213,17 @@ function App() {
   const total = items.reduce((acc, item) => acc + item.subtotal, 0);
 
   useEffect(() => {
-    // Carregar configurações iniciais
-    fetchConfig().then(setConfig).catch(console.error);
-  }, []);
+    if (token) {
+      fetchConfig().then(setConfig).catch(console.error);
+    }
+  }, [token]);
 
   useEffect(() => {
     // Focar no input sempre que o recibo ou modal forem fechados
-    if (!receipt && !loading && !showSearchModal && !showReportModal && !showAddProductModal && !showConfigModal && !showClientesModal && !showAddClienteModal && !showScanner && !showQtyModal) {
+    if (token && !receipt && !loading && !showSearchModal && !showReportModal && !showAddProductModal && !showConfigModal && !showClientesModal && !showAddClienteModal && !showScanner && !showQtyModal) {
       inputRef.current?.focus();
     }
-  }, [receipt, loading, showSearchModal, showReportModal, showAddProductModal, showConfigModal, showClientesModal, showAddClienteModal, showScanner, showQtyModal]);
+  }, [receipt, loading, showSearchModal, showReportModal, showAddProductModal, showConfigModal, showClientesModal, showAddClienteModal, showScanner, showQtyModal, token]);
 
   // Efeito para o Scanner da Câmera
   useEffect(() => {
@@ -145,6 +248,9 @@ function App() {
       };
     }
   }, [showScanner, handleScanFromCamera]);
+
+  if (authLoading) return <div style={{height: '100vh', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white'}}>Carregando...</div>;
+  if (!token) return <LoginPage />;
 
   const openSearchModal = async () => {
     setLoading(true);
@@ -658,12 +764,17 @@ function App() {
         <div className="header">
             <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>🐼 Caixa Panda</h1>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <div style={{ marginRight: '10px', textAlign: 'right', lineHeight: '1.2' }}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Bem-vindo,</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 'bold' }}>{user?.nome}</div>
+                </div>
                 <button className="btn-icon" onClick={openConfigModal} title="Configurações do Mercado">⚙️</button>
                 <button className="btn-icon" onClick={() => setShowEstoqueModal(true)} title="Gestão de Estoque (MiniWMS)" style={{ background: '#7c3aed', borderColor: '#7c3aed' }}>🏭</button>
                 <button className="btn-icon" onClick={handleGenerateStockPDF} title="Baixar Relatório de Estoque" style={{ background: '#3b82f6', borderColor: '#3b82f6' }}>📦</button>
                 <button className="btn-icon" onClick={openReportModal} title="Extrato e Relatórios">📊</button>
                 <button className="btn-icon" onClick={() => setShowAddProductModal(true)} title="Cadastrar Novo Produto">➕</button>
                 <button className="btn-icon" onClick={openClientesModal} title="Gerenciar Clientes">👥</button>
+                <button className="btn-icon" onClick={logout} title="Sair do Sistema" style={{ background: '#ef4444', borderColor: '#ef4444' }}>🚪</button>
                 <span className="mobile-hide" style={{ color: 'var(--text-secondary)' }}>{new Date().toLocaleDateString()}</span>
             </div>
         </div>
@@ -1037,55 +1148,15 @@ function App() {
 
         {/* Product Search Modal (Lupa) */}
         {showSearchModal && (
-            <div className="modal-overlay" onClick={() => setShowSearchModal(false)}>
-                <div className="modal" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                        <h2>📦 Buscar Produto</h2>
-                        <button className="secondary-close" onClick={() => setShowSearchModal(false)}>X</button>
-                    </div>
-
-                    <input 
-                        className="big-input" 
-                        style={{ fontSize: '1rem', padding: '0.75rem' }}
-                        placeholder="Filtrar por nome ou código..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        autoFocus
-                    />
-
-                    <div style={{ marginTop: '1rem', maxHeight: '400px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '24px' }}>
-                        {allProducts.map(produto => (
-                            <div 
-                                key={produto.id} 
-                                className="table-row animate-item" 
-                                style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr auto', cursor: 'pointer' }}
-                                onClick={() => promptQuantidade(produto)}
-                            >
-                                <div style={{ textAlign: 'left', fontWeight: 'bold' }}>{produto.nome}</div>
-                                <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                                    {produto.codigos?.map(c => c.codigo).join(', ')}
-                                </div>
-                                <div style={{ 
-                                    fontWeight: 'bold', 
-                                    color: produto.estoque <= 0 ? 'var(--danger)' : produto.estoque < 10 ? 'var(--warning, orange)' : 'var(--success)' 
-                                }}>
-                                    {produto.estoque} un
-                                </div>
-                                <div style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{formatCurrency(produto.valor)}</div>
-                                <div style={{ display: 'flex', gap: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
-                                    <button className="secondary" style={{ padding: '0.4rem', fontSize: '1rem' }} onClick={() => startEditProduct(produto)}>✏️</button>
-                                    <button className="danger" style={{ padding: '0.4rem', fontSize: '1rem' }} onClick={() => handleDeleteProduct(produto.id)}>🗑️</button>
-                                </div>
-                            </div>
-                        ))}
-                        {allProducts.length === 0 && (
-                            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                                Nenhum produto encontrado.
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
+            <ProductSearchModal 
+                allProducts={allProducts}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                onClose={() => setShowSearchModal(false)}
+                onSelect={promptQuantidade}
+                onEdit={startEditProduct}
+                onDelete={handleDeleteProduct}
+            />
         )}
 
         {/* Receipt Modal */}
@@ -1280,3 +1351,4 @@ function App() {
 }
 
 export default App;
+

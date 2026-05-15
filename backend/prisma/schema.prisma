@@ -75,3 +75,13 @@ model MovimentacaoEstoque {
   data        DateTime @default(now())
   produto     Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 }
+
+model Usuario {
+  id       Int    @id @default(autoincrement())
+  nome     String
+  email    String @unique
+  senha    String
+  role     String @default("OPERADOR") // OPERADOR, GERENTE, ADMIN
+  criadoEm DateTime @default(now())
+}
+

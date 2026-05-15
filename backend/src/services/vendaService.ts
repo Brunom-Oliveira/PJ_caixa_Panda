@@ -1,49 +1,62 @@
 
 import { PrismaClient } from '@prisma/client';
+import { Decimal } from 'decimal.js';
 import { prisma } from '../database/prisma.js';
 import { AppError } from '../errors/AppError.js';
 import { estoqueService } from './estoqueService.js';
 
 export const vendaService = {
   async cadastrar(itens: { produtoId: number; quantidade: number }[], clienteId?: number) {
-     // 1. Fetch products to get prices and check stock
-    const produtoIds = itens.map(item => item.produtoId);
-    
-    // Check if products exist and have stock
-    for (const item of itens) {
-      const produto = await prisma.produto.findUnique({ where: { id: item.produtoId } });
-      if (!produto) {
-        throw new AppError(`Produto não encontrado: ID ${item.produtoId}`, 404);
-      }
-      if (produto.estoque < item.quantidade) {
-        throw new AppError(`Estoque insuficiente para o produto ${produto.nome}`, 400);
-      }
-    }
+    if (!itens || itens.length === 0) throw new AppError('Carrinho vazio.', 400);
 
-    let totalVenda = 0;
-    const itemsToCreate: { produtoId: number; quantidade: number; subtotal: number }[] = [];
-
-    // Calculate total and prepare items
-    for (const item of itens) {
-      const produto = await prisma.produto.findUnique({ where: { id: item.produtoId } });
-      if (!produto) continue;
-
-      const subtotal = produto.valor * item.quantidade;
-      totalVenda += subtotal;
-
-      itemsToCreate.push({
-        produtoId: item.produtoId,
-        quantidade: item.quantidade,
-        subtotal: subtotal
-      });
-    }
-
-    // Transaction to create sale and update stock
+    // Iniciar Transação Atômica - Impede Race Conditions
     const venda = await prisma.$transaction(async (tx) => {
-      // Create Sale
+      let totalVenda = new Decimal(0);
+      const itemsToCreate: { produtoId: number; quantidade: number; subtotal: number }[] = [];
+
+      for (const item of itens) {
+        // Leitura protegida DENTRO da transação
+        const produto = await tx.produto.findUnique({ where: { id: item.produtoId } });
+        
+        if (!produto) {
+          throw new AppError(`Produto não encontrado: ID ${item.produtoId}`, 404);
+        }
+        if (produto.estoque < item.quantidade) {
+          throw new AppError(`Estoque insuficiente para o produto ${produto.nome}. Disponível: ${produto.estoque}`, 400);
+        }
+
+        // Cálculos Financeiros Seguros com Decimal.js
+        const subtotal = new Decimal(produto.valor).times(item.quantidade);
+        totalVenda = totalVenda.plus(subtotal);
+
+        itemsToCreate.push({
+          produtoId: item.produtoId,
+          quantidade: item.quantidade,
+          subtotal: subtotal.toNumber()
+        });
+
+        // Decremento Atômico
+        await tx.produto.update({
+          where: { id: item.produtoId },
+          data: { estoque: { decrement: item.quantidade } }
+        });
+
+        // Registro de Movimentação no WMS vinculado à Transação
+        await tx.movimentacaoEstoque.create({
+          data: {
+            produtoId: item.produtoId,
+            tipo: 'SAIDA', // Ou 'SAIDA_VENDA'
+            quantidade: item.quantidade,
+            motivo: 'Venda via PDV',
+            data: new Date()
+          }
+        });
+      }
+
+      // Finalizar Venda
       const novaVenda = await tx.venda.create({
         data: {
-          total: totalVenda,
+          total: totalVenda.toNumber(),
           clienteId: clienteId || undefined,
           itens: {
             create: itemsToCreate
@@ -58,17 +71,6 @@ export const vendaService = {
           }
         }
       });
-
-      // Update Stock via EstoqueService
-      for (const item of itemsToCreate) {
-        await estoqueService.registrarMovimentacao(
-          item.produtoId,
-          'SAIDA',
-          item.quantidade,
-          `Venda #${novaVenda.id}`,
-          tx
-        );
-      }
 
       return novaVenda;
     });

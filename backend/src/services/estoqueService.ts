@@ -1,5 +1,6 @@
 
 import { prisma } from '../database/prisma.js';
+import { Decimal } from 'decimal.js';
 import { AppError } from '../errors/AppError.js';
 
 export const estoqueService = {
@@ -95,43 +96,49 @@ export const estoqueService = {
     const totalItens = produtos.length;
     const itensBaixoEstoque = produtos.filter(p => p.estoque <= (p.estoqueMinimo || 5)).length;
     
-    // Cálculos Financeiros
-    let valorTotalCusto = 0;
-    let valorTotalVenda = 0;
+    // Cálculos Financeiros com Precisão (Decimal.js)
+    let valorTotalCusto = new Decimal(0);
+    let valorTotalVenda = new Decimal(0);
     
     produtos.forEach(p => {
         if (p.estoque > 0) {
-            valorTotalCusto += p.estoque * (p.precoCusto || 0);
-            valorTotalVenda += p.estoque * p.valor;
+            const custoItem = new Decimal(p.precoCusto || 0).times(p.estoque);
+            const vendaItem = new Decimal(p.valor).times(p.estoque);
+            valorTotalCusto = valorTotalCusto.plus(custoItem);
+            valorTotalVenda = valorTotalVenda.plus(vendaItem);
         }
     });
 
-    const lucroProjetado = valorTotalVenda - valorTotalCusto;
-    const margemMedia = valorTotalVenda > 0 ? (lucroProjetado / valorTotalVenda) * 100 : 0;
+    const lucroProjetado = valorTotalVenda.minus(valorTotalCusto);
+    const margemMedia = valorTotalVenda.greaterThan(0) 
+        ? lucroProjetado.dividedBy(valorTotalVenda).times(100).toNumber() 
+        : 0;
 
     return {
         totalItens,
         itensBaixoEstoque,
-        valorTotalCusto,
-        valorTotalVenda,
-        lucroProjetado,
+        valorTotalCusto: valorTotalCusto.toNumber(),
+        valorTotalVenda: valorTotalVenda.toNumber(),
+        lucroProjetado: lucroProjetado.toNumber(),
         margemMedia
     };
   },
 
-  // Helper to set absolute stock (correction)
+  // Helper to set absolute stock (correction) atomically
   async corrigirEstoque(produtoId: number, novoEstoque: number, motivo: string) {
-      const produto = await prisma.produto.findUnique({ where: { id: produtoId } });
-      if (!produto) throw new AppError('Produto não encontrado', 404);
+      await prisma.$transaction(async (tx) => {
+          const produto = await tx.produto.findUnique({ where: { id: produtoId } });
+          if (!produto) throw new AppError('Produto não encontrado', 404);
 
-      const diferenca = novoEstoque - produto.estoque;
-      if (diferenca === 0) return;
+          const diferenca = novoEstoque - produto.estoque;
+          if (diferenca === 0) return;
 
-      if (diferenca > 0) {
-          await this.registrarMovimentacao(produtoId, 'AJUSTE_ENTRADA', diferenca, motivo);
-      } else {
-          // Adjusting down
-          await this.registrarMovimentacao(produtoId, 'AJUSTE_SAIDA', Math.abs(diferenca), `Correção de Estoque: ${motivo}`);
-      }
+          if (diferenca > 0) {
+              await this.registrarMovimentacao(produtoId, 'AJUSTE_ENTRADA', diferenca, motivo, tx);
+          } else {
+              // Adjusting down
+              await this.registrarMovimentacao(produtoId, 'AJUSTE_SAIDA', Math.abs(diferenca), `Correção de Estoque: ${motivo}`, tx);
+          }
+      });
   }
 };

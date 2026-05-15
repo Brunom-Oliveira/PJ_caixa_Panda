@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Produto } from '../types';
 import { fetchProdutos, movimentarEstoque, corrigirEstoque as apiCorrigirEstoque, fetchHistoricoMovimentacao, fetchDashboardStats, fetchSugestaoCompra } from '../api';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface EstoqueModalProps {
     onClose: () => void;
@@ -11,6 +12,7 @@ export const EstoqueModal: React.FC<EstoqueModalProps> = ({ onClose }) => {
     const [view, setView] = useState<'LIST' | 'MOVIMENTO' | 'HISTORY' | 'DASHBOARD'>('LIST');
     const [products, setProducts] = useState<Produto[]>([]);
     const [selectedProduct, setSelectedProduct] = useState<Produto | null>(null);
+    const parentRef = useRef<HTMLDivElement>(null);
     
     // Dashboard Data
     const [stats, setStats] = useState<any>(null);
@@ -27,6 +29,14 @@ export const EstoqueModal: React.FC<EstoqueModalProps> = ({ onClose }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+
+    // Virtualization configuration
+    const rowVirtualizer = useVirtualizer({
+        count: products.length,
+        getScrollElement: () => parentRef.current,
+        estimateSize: () => 80,
+        overscan: 10,
+    });
 
     useEffect(() => {
         if (view === 'LIST') {
@@ -65,11 +75,9 @@ export const EstoqueModal: React.FC<EstoqueModalProps> = ({ onClose }) => {
         }
     };
 
-    // ... (rest of styles or helper vars)
     const formatMoney = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
     const handleSelectProduct = (prod: Produto) => {
-        // ... (existing)
         setSelectedProduct(prod);
         setView('MOVIMENTO');
         setTipoMovimento('ENTRADA');
@@ -79,8 +87,6 @@ export const EstoqueModal: React.FC<EstoqueModalProps> = ({ onClose }) => {
         setError(null);
         setSuccess(null);
     };
-
-    // ... (existing handlers)
 
     const handleViewHistory = async (prod: Produto) => {
         setSelectedProduct(prod);
@@ -96,7 +102,7 @@ export const EstoqueModal: React.FC<EstoqueModalProps> = ({ onClose }) => {
         }
     };
 
-     const handleSubmitMovimentacao = async (e: React.FormEvent) => {
+    const handleSubmitMovimentacao = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedProduct) return;
         setLoading(true);
@@ -125,10 +131,6 @@ export const EstoqueModal: React.FC<EstoqueModalProps> = ({ onClose }) => {
                 setSuccess('Movimentação registrada com sucesso!');
             }
             
-            // Go back to list or refresh
-            // For now, refresh list and maybe go back if needed, or stay
-            
-            // Clear form
             setQuantidade('');
             setMotivo('');
             
@@ -142,7 +144,6 @@ export const EstoqueModal: React.FC<EstoqueModalProps> = ({ onClose }) => {
     const formatDate = (dateStr: string) => {
         return new Date(dateStr).toLocaleString();
     };
-
 
     return (
         <div className="modal-overlay" onClick={onClose} style={{ zIndex: 1100 }}>
@@ -265,46 +266,63 @@ export const EstoqueModal: React.FC<EstoqueModalProps> = ({ onClose }) => {
                             />
                         </div>
 
-                        <div className="product-list-container" style={{ flex: 1, overflowY: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                <thead style={{position: 'sticky', top: 0, background: 'white'}}>
-                                    <tr style={{ background: '#f8f9fa', textAlign: 'left' }}>
-                                        <th style={{ padding: '10px' }}>Produto</th>
-                                        <th style={{ padding: '10px' }}>Estoque Atual</th>
-                                        <th style={{ padding: '10px', textAlign: 'center' }}>Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {products.map(p => {
-                                        const isLowStock = p.estoque <= (p.estoqueMinimo || 5);
-                                        return (
-                                        <tr key={p.id} style={{ borderBottom: '1px solid #eee', background: isLowStock ? '#fff1f2' : 'transparent' }}>
-                                            <td style={{ padding: '10px' }}>
-                                                <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
-                                                    <strong>{p.nome}</strong>
-                                                    {isLowStock && <span title="Estoque Baixo!" style={{fontSize: '12px'}}>⚠️</span>}
-                                                </div>
-                                                <small style={{color:'#666'}}>{p.codigos?.map(c => c.codigo).join(', ')}</small>
-                                                <div style={{fontSize: '0.8rem', color: '#888'}}>
-                                                    Local: {p.localizacao || '-'} | Mín: {p.estoqueMinimo || 5} | {p.unidade || 'UN'}
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: '10px' }}>
-                                                <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: isLowStock ? '#dc2626' : 'inherit' }}>
-                                                    {p.estoque} <span style={{fontSize: '0.9rem', fontWeight: 'normal'}}>{p.unidade || 'UN'}</span>
-                                                </div>
-                                                <div style={{fontSize: '0.8rem', color: '#666'}}>
-                                                    Custo: R$ {p.precoCusto?.toFixed(2) || '0.00'}
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: '10px', display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                                                <button className="secondary" onClick={() => handleSelectProduct(p)}>Movimentar</button>
-                                                <button className="secondary" onClick={() => handleViewHistory(p)}>Histórico</button>
-                                            </td>
+                        <div className="product-list-container" ref={parentRef} style={{ flex: 1, overflowY: 'auto' }}>
+                            <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead style={{position: 'sticky', top: 0, background: 'white', zIndex: 1}}>
+                                        <tr style={{ background: '#f8f9fa', textAlign: 'left' }}>
+                                            <th style={{ padding: '10px' }}>Produto</th>
+                                            <th style={{ padding: '10px' }}>Estoque Atual</th>
+                                            <th style={{ padding: '10px', textAlign: 'center' }}>Ações</th>
                                         </tr>
-                                    )})}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                            const p = products[virtualRow.index];
+                                            const isLowStock = p.estoque <= (p.estoqueMinimo || 5);
+                                            return (
+                                            <tr 
+                                                key={virtualRow.key} 
+                                                style={{ 
+                                                    position: 'absolute',
+                                                    top: 0,
+                                                    left: 0,
+                                                    width: '100%',
+                                                    height: `${virtualRow.size}px`,
+                                                    transform: `translateY(${virtualRow.start}px)`,
+                                                    borderBottom: '1px solid #eee', 
+                                                    background: isLowStock ? '#fff1f2' : 'transparent',
+                                                    display: 'flex',
+                                                    alignItems: 'center'
+                                                }}
+                                            >
+                                                <td style={{ flex: 1, padding: '10px' }}>
+                                                    <div style={{display: 'flex', alignItems: 'center', gap: '5px'}}>
+                                                        <strong>{p.nome}</strong>
+                                                        {isLowStock && <span title="Estoque Baixo!" style={{fontSize: '12px'}}>⚠️</span>}
+                                                    </div>
+                                                    <small style={{color:'#666'}}>{p.codigos?.map(c => c.codigo).join(', ')}</small>
+                                                    <div style={{fontSize: '0.8rem', color: '#888'}}>
+                                                        Local: {p.localizacao || '-'} | Mín: {p.estoqueMinimo || 5} | {p.unidade || 'UN'}
+                                                    </div>
+                                                </td>
+                                                <td style={{ width: '150px', padding: '10px' }}>
+                                                    <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: isLowStock ? '#dc2626' : 'inherit' }}>
+                                                        {p.estoque} <span style={{fontSize: '0.9rem', fontWeight: 'normal'}}>{p.unidade || 'UN'}</span>
+                                                    </div>
+                                                    <div style={{fontSize: '0.8rem', color: '#666'}}>
+                                                        Custo: R$ {p.precoCusto?.toFixed(2) || '0.00'}
+                                                    </div>
+                                                </td>
+                                                <td style={{ width: '250px', padding: '10px', display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                                                    <button className="secondary" onClick={() => handleSelectProduct(p)}>Movimentar</button>
+                                                    <button className="secondary" onClick={() => handleViewHistory(p)}>Histórico</button>
+                                                </td>
+                                            </tr>
+                                        )})}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </>
                 )}

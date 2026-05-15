@@ -7,12 +7,17 @@ import { router as configRoutes } from './routes/configRoutes.js';
 import { router as clienteRoutes } from './routes/clienteRoutes.js';
 import { estoqueRoutes } from './routes/estoqueRoutes.js';
 
+import helmet from 'helmet';
+import authRoutes from './routes/authRoutes.js';
+
 dotenv.config();
 
 const app = express();
+app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+app.use('/auth', authRoutes);
 app.use('/produtos', produtoRoutes);
 app.use('/vendas', vendaRoutes);
 app.use('/config', configRoutes);

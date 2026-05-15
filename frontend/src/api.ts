@@ -1,54 +1,44 @@
+
+import axios from 'axios';
 import type { Produto, Venda, Configuracao, Cliente } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-export async function fetchConfig(): Promise<Configuracao> {
-  const response = await fetch(`${API_URL}/config`);
-  if (!response.ok) {
-    const text = await response.text();
-    let msg = 'Erro ao buscar configurações';
-    try { const data = JSON.parse(text); msg = data.erro || msg; } catch { msg = text || msg; }
-    throw new Error(msg);
+export const api = axios.create({
+  baseURL: API_URL,
+});
+
+// Interceptor para adicionar o token JWT em todas as requisições
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('@PandaMarket:token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-  return response.json();
+  return config;
+});
+
+// Funções de API existentes refatoradas para usar axios
+export async function fetchConfig(): Promise<Configuracao> {
+  const response = await api.get('/config');
+  return response.data;
 }
 
 export async function updateConfig(config: Partial<Configuracao>): Promise<Configuracao> {
-  const response = await fetch(`${API_URL}/config`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config),
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    let msg = 'Erro ao atualizar configurações';
-    try { const data = JSON.parse(text); msg = data.erro || msg; } catch { msg = text || msg; }
-    throw new Error(msg);
-  }
-  return response.json();
+  const response = await api.put('/config', config);
+  return response.data;
 }
 
 export async function fetchProdutos(query?: string): Promise<Produto[]> {
-  const url = query ? `${API_URL}/produtos?q=${encodeURIComponent(query)}` : `${API_URL}/produtos`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Erro ao buscar lista de produtos');
-  return response.json();
+  const url = query ? `/produtos?q=${encodeURIComponent(query)}` : '/produtos';
+  const response = await api.get(url);
+  return response.data;
 }
 
 export async function fetchVendas(dataInicio?: string, dataFim?: string, produtoId?: number): Promise<Venda[]> {
-  let url = `${API_URL}/vendas`;
-  const params = new URLSearchParams();
-  if (dataInicio) params.append('dataInicio', dataInicio);
-  if (dataFim) params.append('dataFim', dataFim);
-  if (produtoId) params.append('produtoId', produtoId.toString());
-  
-  if (params.toString()) {
-    url += `?${params.toString()}`;
-  }
-
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Erro ao buscar vendas');
-  return response.json();
+  const response = await api.get('/vendas', {
+    params: { dataInicio, dataFim, produtoId }
+  });
+  return response.data;
 }
 
 type ProdutoPayload = {
@@ -59,162 +49,78 @@ type ProdutoPayload = {
 };
 
 export async function cadastrarProduto(p: ProdutoPayload): Promise<Produto> {
-  const response = await fetch(`${API_URL}/produtos`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(p),
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    let errorMessage = 'Erro ao cadastrar produto';
-    try {
-      const errorData = JSON.parse(text);
-      errorMessage = errorData.erro || errorMessage;
-    } catch {
-      errorMessage = text || errorMessage;
-    }
-    throw new Error(errorMessage);
-  }
-  return response.json();
+  const response = await api.post('/produtos', p);
+  return response.data;
 }
 
 export async function atualizarProduto(id: number, p: ProdutoPayload): Promise<Produto> {
-  const response = await fetch(`${API_URL}/produtos/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(p),
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    let errorMessage = 'Erro ao atualizar produto';
-    try {
-      const errorData = JSON.parse(text);
-      errorMessage = errorData.erro || errorMessage;
-    } catch {
-      errorMessage = text || errorMessage;
-    }
-    throw new Error(errorMessage);
-  }
-  return response.json();
+  const response = await api.put(`/produtos/${id}`, p);
+  return response.data;
 }
 
 export async function excluirProduto(id: number): Promise<void> {
-  const response = await fetch(`${API_URL}/produtos/${id}`, {
-    method: 'DELETE',
-  });
-  if (!response.ok) throw new Error('Erro ao remover produto');
+  await api.delete(`/produtos/${id}`);
 }
 
 export async function fetchProdutoByCodigo(codigo: string): Promise<Produto | null> {
-  const response = await fetch(`${API_URL}/produtos/codigo/${codigo}`);
-  if (!response.ok) {
-    if (response.status === 404) return null;
-    throw new Error('Erro ao buscar produto');
+  try {
+    const response = await api.get(`/produtos/codigo/${codigo}`);
+    return response.data;
+  } catch (err: any) {
+    if (err.response?.status === 404) return null;
+    throw err;
   }
-  return response.json();
 }
 
 export async function fetchClientes(query?: string): Promise<Cliente[]> {
-  const url = query ? `${API_URL}/clientes?q=${encodeURIComponent(query)}` : `${API_URL}/clientes`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Erro ao buscar clientes');
-  return response.json();
+  const url = query ? `/clientes?q=${encodeURIComponent(query)}` : '/clientes';
+  const response = await api.get(url);
+  return response.data;
 }
 
 export async function cadastrarClienteApi(c: Omit<Cliente, 'id'>): Promise<Cliente> {
-  const response = await fetch(`${API_URL}/clientes`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(c),
-  });
-  if (!response.ok) throw new Error('Erro ao cadastrar cliente');
-  return response.json();
+  const response = await api.post('/clientes', c);
+  return response.data;
 }
 
 export async function atualizarClienteApi(id: number, c: Partial<Cliente>): Promise<Cliente> {
-  const response = await fetch(`${API_URL}/clientes/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(c),
-  });
-  if (!response.ok) throw new Error('Erro ao atualizar cliente');
-  return response.json();
+  const response = await api.put(`/clientes/${id}`, c);
+  return response.data;
 }
 
 export async function excluirClienteApi(id: number): Promise<void> {
-  const response = await fetch(`${API_URL}/clientes/${id}`, {
-    method: 'DELETE',
-  });
-  if (!response.ok) throw new Error('Erro ao excluir cliente');
+  await api.delete(`/clientes/${id}`);
 }
 
 export async function createVenda(itens: { produtoId: number; quantidade: number }[], clienteId?: number): Promise<Venda> {
-  const response = await fetch(`${API_URL}/vendas`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ itens, clienteId }),
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    let errorMessage = 'Falha ao finalizar venda';
-    try {
-      const errorData = JSON.parse(text);
-      errorMessage = errorData.erro || errorMessage;
-    } catch {
-      errorMessage = text || errorMessage;
-    }
-    throw new Error(errorMessage);
-  }
-  return response.json();
+  const response = await api.post('/vendas', { itens, clienteId });
+  return response.data;
+}
+
+export async function movimentarEstoque(dados: { produtoId: number; tipo: string; quantidade: number; motivo: string }): Promise<void> {
+  await api.post('/estoque/movimentacao', dados);
+}
+
+export async function corrigirEstoque(dados: { produtoId: number; novoEstoque: number; motivo: string }): Promise<void> {
+  await api.post('/estoque/ajuste', dados);
+}
+
+export async function fetchHistoricoMovimentacao(produtoId?: number): Promise<any[]> {
+  const url = produtoId ? `/estoque/historico/${produtoId}` : '/estoque/historico';
+  const response = await api.get(url);
+  return response.data;
+}
+
+export async function fetchDashboardStats(): Promise<any> {
+  const response = await api.get('/estoque/dashboard');
+  return response.data;
+}
+
+export async function fetchSugestaoCompra(): Promise<any[]> {
+  const response = await api.get('/estoque/sugestao-compra');
+  return response.data;
 }
 
 export const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
-
-export async function movimentarEstoque(dados: { produtoId: number; tipo: string; quantidade: number; motivo: string }): Promise<void> {
-  const response = await fetch(`${API_URL}/estoque/movimentacao`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(dados),
-  });
-  if (!response.ok) {
-     const text = await response.text();
-     let msg = 'Erro ao realizar movimentação';
-     try { const data = JSON.parse(text); msg = data.erro || msg; } catch { msg = text || msg; }
-     throw new Error(msg);
-  }
-}
-
-export async function corrigirEstoque(dados: { produtoId: number; novoEstoque: number; motivo: string }): Promise<void> {
-    const response = await fetch(`${API_URL}/estoque/ajuste`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dados),
-    });
-    if (!response.ok) {
-       const text = await response.text();
-       let msg = 'Erro ao ajustar estoque';
-       try { const data = JSON.parse(text); msg = data.erro || msg; } catch { msg = text || msg; }
-       throw new Error(msg);
-    }
-}
-
-export async function fetchHistoricoMovimentacao(produtoId?: number): Promise<any[]> {
-    const url = produtoId ? `${API_URL}/estoque/historico/${produtoId}` : `${API_URL}/estoque/historico`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Erro ao buscar histórico de estoque');
-    return response.json();
-}
-
-export async function fetchDashboardStats(): Promise<any> {
-    const response = await fetch(`${API_URL}/estoque/dashboard`);
-    if (!response.ok) throw new Error('Erro ao buscar dashboard');
-    return response.json();
-}
-
-export async function fetchSugestaoCompra(): Promise<any[]> {
-    const response = await fetch(`${API_URL}/estoque/sugestao-compra`);
-    if (!response.ok) throw new Error('Erro ao buscar sugestão de compra');
-    return response.json();
-}

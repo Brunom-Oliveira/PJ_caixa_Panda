@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger.js';
 import type { Request, Response, NextFunction } from 'express';
 import { AppError } from '../errors/AppError.js';
 import { Prisma } from '@prisma/client';
@@ -16,7 +17,6 @@ export function errorMiddleware(
   }
 
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    // Unique constraint failed
     if (err.code === 'P2002') {
       const field = (err.meta?.target as string[])?.join(', ') || 'campo';
       return res.status(409).json({
@@ -24,7 +24,6 @@ export function errorMiddleware(
         message: `Já existe um registro com este ${field}.`,
       });
     }
-    // Record not found
     if (err.code === 'P2025') {
        return res.status(404).json({
         status: 'error',
@@ -33,7 +32,14 @@ export function errorMiddleware(
     }
   }
 
-  console.error('❌ Erro Interno:', err);
+  logger.error('Erro não tratado', {
+    message: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method,
+    body: req.body,
+    user: req.user?.id
+  });
 
   return res.status(500).json({
     status: 'error',
