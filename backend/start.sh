@@ -2,15 +2,14 @@
 
 echo "🔍 Verificando variáveis de ambiente..."
 if [ -z "$DATABASE_URL" ]; then
-  echo "❌ ERRO: A variável DATABASE_URL não está configurada no Render!"
+  echo "❌ ERRO: A variável DATABASE_URL não está configurada!"
   exit 1
 fi
 
-echo "🚀 Iniciando sincronização do banco com Prisma (db push)..."
-npx prisma db push --accept-data-loss
-
-echo "🌱 Rodando sementes (seeds)..."
-npx prisma db seed
+# Removido db push e seed daqui pois já foram feitos manualmente 
+# e para evitar que o pooler do Supabase (porta 6543) trave o deploy.
 
 echo "🌐 Iniciando servidor Node.js..."
 node dist/index.js
+
+# Cache bust: 2026-05-15T23:11:00
