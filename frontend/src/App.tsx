@@ -266,8 +266,7 @@ function App() {
     return () => clearTimeout(timer);
   }, [clienteSearchTerm, showClientesModal]);
 
-  if (authLoading) return <div style={{height: '100vh', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white'}}>Carregando...</div>;
-  if (!token) return <LoginPage />;
+  // Renderização condicional movida para dentro do return principal para garantir a ordem dos hooks
 
   const openSearchModal = async () => {
     setLoading(true);
@@ -761,7 +760,13 @@ function App() {
   };
 
   return (
-    <div className="pos-container">
+    <>
+      {authLoading ? (
+        <div style={{height: '100vh', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white'}}>Carregando...</div>
+      ) : !token ? (
+        <LoginPage />
+      ) : (
+        <div className="pos-container">
         {/* Header */}
         <div className="header">
             <h1 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>🐼 Caixa Panda</h1>
@@ -1348,7 +1353,9 @@ function App() {
                 ⚠️ {error}
             </div>
         )}
-    </div>
+        </div>
+      )}
+    </>
   );
 }
 
