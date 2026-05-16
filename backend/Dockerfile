@@ -39,4 +39,4 @@ RUN mkdir -p logs
 EXPOSE 3000
 
 # Script to run migrations and start the server
-CMD ["sh", "-c", "npx prisma generate && npx prisma db push && node dist/index.js"]
+CMD ["sh", "-c", "npx prisma db push && node dist/index.js"]

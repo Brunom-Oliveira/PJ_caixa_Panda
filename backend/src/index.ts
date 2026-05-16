@@ -29,5 +29,6 @@ import { errorMiddleware } from './middleware/errorMiddleware.js';
 app.use(errorMiddleware);
 
 const PORT = process.env.PORT || 3000;
-console.log('🔌 Database URL:', process.env.DATABASE_URL);
-app.listen(PORT, () => console.log(`✅ Servidor rodando na porta ${PORT}`));
+app.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`✅ Servidor rodando em http://0.0.0.0:${PORT}`);
+});
