@@ -7,8 +7,10 @@ if [ -z "$DATABASE_URL" ]; then
 fi
 
 echo "🚀 Iniciando sincronização do banco com Prisma (db push)..."
-# Tenta rodar o push, mas não trava o container se falhar (para podermos ver o erro no log)
 npx prisma db push --accept-data-loss
+
+echo "🌱 Rodando sementes (seeds)..."
+npx prisma db seed
 
 echo "🌐 Iniciando servidor Node.js..."
 node dist/index.js

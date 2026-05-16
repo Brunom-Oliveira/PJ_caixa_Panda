@@ -1,9 +1,29 @@
 
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
+  // Criar usuário Admin se não existir
+  const adminEmail = 'admin@admin.com';
+  const adminExists = await prisma.usuario.findUnique({ where: { email: adminEmail } });
+
+  if (!adminExists) {
+    const hashedPassword = await bcrypt.hash('admin123', 10);
+    await prisma.usuario.create({
+      data: {
+        nome: 'Administrador',
+        email: adminEmail,
+        senha: hashedPassword,
+        role: 'ADMIN'
+      }
+    });
+    console.log('✅ Usuário Admin criado: admin@admin.com / admin123');
+  } else {
+    console.log('ℹ️ Usuário Admin já existe.');
+  }
+
   const products = [
     { nome: 'Arroz 5kg', codigos: ['7891234567890'], valor: 25.90, estoque: 100 },
     { nome: 'Feijão 1kg', codigos: ['7891234567891'], valor: 8.50, estoque: 200 },
