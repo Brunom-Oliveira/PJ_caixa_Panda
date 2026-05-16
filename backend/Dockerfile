@@ -17,7 +17,6 @@ RUN npm install
 COPY . .
 
 # Generate Prisma Client and build TypeScript
-# Use a dummy URL for build-time generation to avoid validation errors
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
 RUN npm run build
 
@@ -32,13 +31,16 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/start.sh ./start.sh
+
+# Garante permissão de execução
+RUN chmod +x ./start.sh
 
 # Create logs directory
 RUN mkdir -p logs
 
-# Render uses the PORT environment variable, defaulting to 3000
 ENV PORT=3000
 EXPOSE 3000
 
-# Startup script with verbose logging to debug hangs
-CMD ["sh", "-c", "echo '🚀 Iniciando sincronização do banco com Prisma...' && npx prisma db push --accept-data-loss && echo '✅ Banco sincronizado com sucesso!' && echo '🌐 Iniciando servidor Node.js na porta $PORT...' && node dist/index.js"]
+# Usa o script de inicialização
+CMD ["./start.sh"]
