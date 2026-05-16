@@ -34,13 +34,11 @@ export const logger = winston.createLogger({
   ],
 });
 
-// Se não estiver em produção, logar também no console com cores
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: combine(
-      colorize(),
-      timestamp({ format: 'HH:mm:ss' }),
-      myFormat
-    ),
-  }));
-}
+// Em produção ou Docker, sempre logar no console para que o Render capture os logs
+logger.add(new winston.transports.Console({
+  format: combine(
+    colorize(),
+    timestamp({ format: 'HH:mm:ss' }),
+    myFormat
+  ),
+}));

@@ -1,4 +1,3 @@
-
 # Use a Node.js LTS base image
 FROM node:20-slim AS builder
 
@@ -18,8 +17,9 @@ RUN npm install
 COPY . .
 
 # Generate Prisma Client and build TypeScript
+# Use a dummy URL for build-time generation to avoid validation errors
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma generate
-RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npm run build
+RUN npm run build
 
 # --- Production Image ---
 FROM node:20-slim AS runner
@@ -36,7 +36,10 @@ COPY --from=builder /app/prisma ./prisma
 # Create logs directory
 RUN mkdir -p logs
 
+# Render uses the PORT environment variable, defaulting to 3000
+ENV PORT=3000
 EXPOSE 3000
 
-# Script to run migrations and start the server
+# Startup script to handle migrations/push and start the server
+# Using prisma db push because existing migrations were created for SQLite
 CMD ["sh", "-c", "npx prisma db push && node dist/index.js"]
