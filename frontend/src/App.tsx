@@ -249,6 +249,23 @@ function App() {
     }
   }, [showScanner, handleScanFromCamera]);
 
+  // Efeitos para busca no backend
+  useEffect(() => {
+    if (!showSearchModal) return;
+    const timer = setTimeout(() => {
+      fetchProdutos(searchTerm).then(setAllProducts).catch(console.error);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm, showSearchModal]);
+
+  useEffect(() => {
+    if (!showClientesModal) return;
+    const timer = setTimeout(() => {
+      fetchClientes(clienteSearchTerm).then(setAllClientes).catch(console.error);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [clienteSearchTerm, showClientesModal]);
+
   if (authLoading) return <div style={{height: '100vh', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white'}}>Carregando...</div>;
   if (!token) return <LoginPage />;
 
@@ -702,22 +719,7 @@ function App() {
     setQtyValue('1');
   };
 
-  // Efeitos para busca no backend
-  useEffect(() => {
-    if (!showSearchModal) return;
-    const timer = setTimeout(() => {
-      fetchProdutos(searchTerm).then(setAllProducts).catch(console.error);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm, showSearchModal]);
 
-  useEffect(() => {
-    if (!showClientesModal) return;
-    const timer = setTimeout(() => {
-      fetchClientes(clienteSearchTerm).then(setAllClientes).catch(console.error);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [clienteSearchTerm, showClientesModal]);
 
   const handleScan = async (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
