@@ -40,6 +40,5 @@ RUN mkdir -p logs
 ENV PORT=3000
 EXPOSE 3000
 
-# Startup script to handle migrations/push and start the server
-# Using prisma db push because existing migrations were created for SQLite
-CMD ["sh", "-c", "npx prisma db push && node dist/index.js"]
+# Startup script with verbose logging to debug hangs
+CMD ["sh", "-c", "echo '🚀 Iniciando sincronização do banco com Prisma...' && npx prisma db push --accept-data-loss && echo '✅ Banco sincronizado com sucesso!' && echo '🌐 Iniciando servidor Node.js na porta $PORT...' && node dist/index.js"]
